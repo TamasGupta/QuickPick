@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --max-w: 1180px;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    @apply text-ink antialiased;
+    background:
+      radial-gradient(1200px 400px at 100% -5%, rgba(216, 180, 254, 0.25), transparent 60%),
+      radial-gradient(1000px 400px at -10% 0%, rgba(232, 121, 249, 0.12), transparent 55%),
+      #faf9fc;
+    background-attachment: fixed;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+@layer components {
+  .container-app {
+    @apply mx-auto w-full px-3 sm:px-5;
+    max-width: var(--max-w);
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700;
+  }
+  .btn-outline {
+    @apply btn border border-gray-200 bg-white text-ink hover:border-gray-300 hover:bg-gray-50;
+  }
+  .btn-ghost {
+    @apply btn px-2.5 text-ink-soft hover:bg-gray-100;
+  }
+
+  /* ---------- Cards ---------- */
+  .card {
+    @apply rounded-2xl border border-gray-100 bg-white shadow-card;
+  }
+
+  /* ---------- Inputs ---------- */
+  .input {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-ink-faint focus:border-brand-400 focus:ring-4 focus:ring-brand-100;
+  }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+
+  /* Small "ADD" pill used on product cards */
+  .add-pill {
+    @apply inline-flex items-center justify-center gap-1 rounded-lg border border-brand-500 bg-brand-50 px-3.5 py-1.5 text-sm font-bold uppercase tracking-wide text-brand-700 transition active:scale-95 hover:bg-brand-100;
+  }
+  .qty-stepper {
+    @apply inline-flex items-center overflow-hidden rounded-lg bg-brand-600 text-white shadow-sm;
+  }
+  .qty-stepper button {
+    @apply flex h-8 w-8 items-center justify-center transition active:scale-90 disabled:opacity-40;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbars on horizontal chip rows */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Subtle skeleton shimmer */
+  .shimmer {
+    background: linear-gradient(90deg, #f1f0f5 25%, #e7e4ee 37%, #f1f0f5 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+
+  /* Gradient text for headings/brand accents */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-600 to-accent-500 bg-clip-text text-transparent;
+  }
+
+  /* Staggered entrance for grids/lists */
+  .stagger > * {
+    animation: fade-in 0.4s ease-out both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.06s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.10s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.14s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.18s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.22s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.26s; }
+  .stagger > *:nth-child(8) { animation-delay: 0.30s; }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
