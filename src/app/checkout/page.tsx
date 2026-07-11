@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE } from "@/lib/utils";
@@ -218,6 +219,33 @@ export default function CheckoutPage() {
               value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
             <input className="input" placeholder="Pincode" required
               value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value })} />
+
+            <div className="col-span-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={detectLocation}
+                className={`btn-outline ${geoStatus === "done" ? "border-brand-500 text-brand-700" : ""}`}
+              >
+                <MapPin className="h-4 w-4" />
+                {geoStatus === "locating"
+                  ? "Locating…"
+                  : geoStatus === "done"
+                    ? "Location pinned"
+                    : "Use current location"}
+              </button>
+              {geoStatus === "done" && geo && (
+                <span className="text-xs text-brand-700">
+                  📍 {geo.lat.toFixed(5)}, {geo.lng.toFixed(5)}
+                </span>
+              )}
+              {geoStatus === "error" && (
+                <span className="text-xs text-red-500">Couldn&apos;t get location — you can still save.</span>
+              )}
+            </div>
+            <p className="col-span-2 -mt-1 text-[11px] text-ink-faint">
+              Pinning your location helps the delivery partner reach your exact doorstep.
+            </p>
+
             <button className="btn-primary col-span-2">Save address</button>
           </form>
         )}

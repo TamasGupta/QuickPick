@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Home, LayoutGrid, ShoppingCart, ClipboardList, User } from "lucide-react";
 import { useCart } from "@/store/cart";
+import { useNotifications } from "@/hooks/useNotifications";
 import { cx } from "@/lib/utils";
 
 const ITEMS = [
@@ -21,9 +22,14 @@ export function BottomNav() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const count = mounted ? rawCount : 0;
+  const { buyerActive } = useNotifications();
 
-  // Hide inside seller/admin consoles.
-  if (path.startsWith("/seller") || path.startsWith("/admin")) return null;
+  // Hide inside seller/admin/rider consoles.
+  if (path.startsWith("/seller") || path.startsWith("/admin") || path.startsWith("/rider"))
+    return null;
+
+  const badgeFor = (href: string) =>
+    href === "/cart" ? count : href === "/orders" && mounted ? buyerActive : 0;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-100 bg-white/95 backdrop-blur-md shadow-nav sm:hidden">
@@ -41,9 +47,9 @@ export function BottomNav() {
               >
                 <span className="relative">
                   <Icon className={cx("h-[22px] w-[22px]", active && "stroke-[2.4]")} />
-                  {href === "/cart" && count > 0 && (
-                    <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-extrabold text-white">
-                      {count}
+                  {badgeFor(href) > 0 && (
+                    <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-extrabold text-white">
+                      {badgeFor(href)}
                     </span>
                   )}
                 </span>

@@ -4,13 +4,21 @@ import { useState } from "react";
 import { inr, ORDER_STATUS_LABELS } from "@/lib/utils";
 import type { OrderStatus } from "@/lib/types";
 
+// Seller drives the order up to "packed"; a delivery partner then picks it up
+// and completes delivery (see the rider flow).
 const NEXT: Record<string, { status: OrderStatus; label: string } | null> = {
   placed: { status: "accepted", label: "Accept order" },
   accepted: { status: "packed", label: "Mark packed" },
-  packed: { status: "out_for_delivery", label: "Out for delivery" },
-  out_for_delivery: { status: "delivered", label: "Mark delivered" },
+  packed: null,
+  out_for_delivery: null,
   delivered: null,
   cancelled: null,
+};
+
+const HANDOFF_NOTE: Record<string, string> = {
+  packed: "Ready for pickup — waiting for a delivery partner",
+  out_for_delivery: "Picked up — out for delivery",
+  delivered: "Delivered to the customer",
 };
 
 interface Props {
@@ -61,13 +69,19 @@ export function SellerOrderCard({ order, items }: Props) {
         ))}
       </ul>
 
+      {HANDOFF_NOTE[status] && (
+        <p className="mt-2 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700">
+          {HANDOFF_NOTE[status]}
+        </p>
+      )}
+
       <div className="mt-3 flex items-center justify-between border-t pt-3">
         <span className="text-sm">
           <b>{inr(order.total)}</b>{" "}
           <span className="uppercase text-gray-400">· {order.payment_status}</span>
         </span>
         <div className="flex gap-2">
-          {status !== "delivered" && status !== "cancelled" && (
+          {(status === "placed" || status === "accepted") && (
             <button
               className="btn-outline py-1 text-red-600"
               disabled={busy}

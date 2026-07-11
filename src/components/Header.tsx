@@ -67,6 +67,9 @@ export function Header() {
 
         {/* Actions */}
         <nav className="ml-auto flex items-center gap-1.5 sm:gap-3">
+          <Link href="/rider" className="btn-ghost hidden lg:inline-flex">
+            Deliver
+          </Link>
           <Link href="/seller" className="btn-ghost hidden lg:inline-flex">
             Sell
           </Link>
