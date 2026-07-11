@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
-import { enrichOrders } from "@/lib/rider";
+import { enrichOrders, requireRider } from "@/lib/rider";
 
 // GET /api/rider/orders?scope=available|active|history
 // Returns delivery jobs for the logged-in rider. Uses the service client so we
@@ -11,6 +11,9 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  if (!(await requireRider(supabase, user))) {
+    return NextResponse.json({ error: "Riders only" }, { status: 403 });
+  }
 
   const scope = new URL(req.url).searchParams.get("scope") ?? "available";
   const service = createServiceSupabase();

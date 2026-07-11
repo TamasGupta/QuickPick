@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Phone, User as UserIcon, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AccountPage() {
   const supabase = createClient();
   const router = useRouter();
-  const [email, setEmail] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
   const [role, setRole] = useState<string>("buyer");
+  const [name, setName] = useState("");
+  const [savedName, setSavedName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -17,15 +21,31 @@ export default function AccountPage() {
         router.push("/login");
         return;
       }
-      setEmail(data.user.email ?? null);
+      setPhone(data.user.phone ?? null);
       const { data: p } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, full_name")
         .eq("id", data.user.id)
         .single();
-      if (p) setRole(p.role);
+      if (p) {
+        setRole(p.role);
+        setName(p.full_name ?? "");
+        setSavedName(p.full_name ?? "");
+      }
     });
   }, [supabase, router]);
+
+  async function saveName() {
+    setSaving(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", user.id);
+      setSavedName(name.trim());
+    }
+    setSaving(false);
+  }
 
   async function logout() {
     await supabase.auth.signOut();
@@ -36,9 +56,32 @@ export default function AccountPage() {
   return (
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-xl font-extrabold">My account</h1>
-      <div className="card space-y-1 p-4 text-sm">
-        <p><span className="text-gray-500">Email:</span> {email}</p>
-        <p><span className="text-gray-500">Role:</span> <span className="uppercase">{role}</span></p>
+
+      <div className="card space-y-3 p-4">
+        <div className="flex items-center gap-2 text-sm">
+          <Phone className="h-4 w-4 text-ink-faint" />
+          <span className="text-ink-soft">{phone ? `+${phone}` : "No phone on file"}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="badge bg-brand-50 text-brand-700 uppercase">{role}</span>
+        </div>
+
+        <div className="flex items-center gap-2 pt-1">
+          <UserIcon className="h-4 w-4 shrink-0 text-ink-faint" />
+          <input
+            className="input"
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button
+            onClick={saveName}
+            disabled={saving || !name.trim() || name.trim() === savedName}
+            className="btn-primary shrink-0 px-3"
+          >
+            {saving ? "…" : <Check className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

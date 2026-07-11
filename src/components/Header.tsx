@@ -11,7 +11,8 @@ export function Header() {
   const rawCount = useCart((s) => s.count());
   const router = useRouter();
   const params = useSearchParams();
-  const [email, setEmail] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
   const [q, setQ] = useState(params.get("q") ?? "");
   const [mounted, setMounted] = useState(false);
   const supabase = createClient();
@@ -21,9 +22,13 @@ export function Header() {
 
   useEffect(() => {
     setMounted(true);
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      setLoggedIn(!!data.user);
+      setPhone(data.user?.phone ?? null);
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setEmail(session?.user?.email ?? null);
+      setLoggedIn(!!session?.user);
+      setPhone(session?.user?.phone ?? null);
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
@@ -73,8 +78,12 @@ export function Header() {
           <Link href="/seller" className="btn-ghost hidden lg:inline-flex">
             Sell
           </Link>
-          {mounted && email ? (
-            <Link href="/account" className="btn-ghost hidden sm:inline-flex" title={email}>
+          {mounted && loggedIn ? (
+            <Link
+              href="/account"
+              className="btn-ghost hidden sm:inline-flex"
+              title={phone ? `+${phone}` : undefined}
+            >
               <User className="h-5 w-5" />
               <span className="hidden md:inline">Account</span>
             </Link>

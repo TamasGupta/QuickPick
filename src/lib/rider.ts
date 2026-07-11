@@ -1,4 +1,16 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+
+// Confirms the caller's profile role is 'rider' before any rider route hands
+// out buyer PII (name/phone/address) or lets them claim/advance a delivery.
+// Without this, any authenticated buyer could call the rider API routes
+// directly and see other buyers' details or hijack a delivery.
+export async function requireRider(
+  supabase: SupabaseClient,
+  user: User
+): Promise<boolean> {
+  const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  return data?.role === "rider";
+}
 
 export interface RiderOrder {
   id: string;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
+import { requireRider } from "@/lib/rider";
 
 const now = () => new Date().toISOString();
 
@@ -13,6 +14,9 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  if (!(await requireRider(supabase, user))) {
+    return NextResponse.json({ error: "Riders only" }, { status: 403 });
+  }
 
   const body = (await req.json().catch(() => ({}))) as { order_id?: string; otp?: string };
   const orderId = body.order_id;
