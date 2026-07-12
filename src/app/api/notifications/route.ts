@@ -29,7 +29,8 @@ export async function GET() {
         .not("status", "in", "(delivered,cancelled)")
     ).count ?? 0;
 
-  // Seller: brand-new orders needing action.
+  // Seller: brand-new orders needing action (exclude unpaid online-payment
+  // attempts — those aren't real orders until payment completes).
   let sellerNew = 0;
   if (seller?.id) {
     sellerNew =
@@ -39,6 +40,7 @@ export async function GET() {
           .select("id", { count: "exact", head: true })
           .eq("seller_id", seller.id)
           .eq("status", "placed")
+          .neq("payment_status", "pending")
       ).count ?? 0;
   }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Spinner } from "@/components/Loader";
 import type { SellerStatus } from "@/lib/types";
 
 export function AdminSellerRow({
@@ -40,12 +41,12 @@ export function AdminSellerRow({
         </span>
         {status !== "approved" && (
           <button className="btn-primary py-1" disabled={busy} onClick={() => set("approved")}>
-            Approve
+            {busy ? <Spinner className="h-4 w-4 border-white/40 border-t-white" /> : "Approve"}
           </button>
         )}
         {status !== "suspended" && (
           <button className="btn-outline py-1 text-red-600" disabled={busy} onClick={() => set("suspended")}>
-            Suspend
+            {busy ? <Spinner className="h-4 w-4 border-red-200 border-t-red-600" /> : "Suspend"}
           </button>
         )}
       </div>

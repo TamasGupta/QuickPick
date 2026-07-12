@@ -7,6 +7,7 @@ import { MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE } from "@/lib/utils";
+import { SkelLine } from "@/components/skeletons";
 import type { Address } from "@/lib/types";
 
 const SLOTS = ["Now (10–20 min)", "Within 1 hour", "This evening", "Tomorrow morning"];
@@ -23,6 +24,7 @@ export default function CheckoutPage() {
   const { items, subtotal, sellerId, clear } = useCart();
 
   const [userId, setUserId] = useState<string | null>(null);
+  const [loadingAddr, setLoadingAddr] = useState(true);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState<string>("");
   const [slot, setSlot] = useState(SLOTS[0]);
@@ -77,6 +79,7 @@ export default function CheckoutPage() {
       setAddresses(list);
       if (list[0]) setAddressId(list[0].id);
       else setShowAddr(true);
+      setLoadingAddr(false);
     });
   }, [supabase, router]);
 
@@ -189,7 +192,14 @@ export default function CheckoutPage() {
           </button>
         </div>
 
-        {addresses.length > 0 && !showAddr && (
+        {loadingAddr && (
+          <div className="mt-3 space-y-2">
+            <SkelLine className="h-10 w-full rounded-lg" />
+            <SkelLine className="h-10 w-full rounded-lg" />
+          </div>
+        )}
+
+        {!loadingAddr && addresses.length > 0 && !showAddr && (
           <div className="mt-3 space-y-2">
             {addresses.map((a) => (
               <label key={a.id} className="flex cursor-pointer items-start gap-2 rounded-lg border p-2 text-sm">

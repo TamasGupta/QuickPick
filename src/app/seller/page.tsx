@@ -16,7 +16,13 @@ export default async function SellerDashboard() {
   const supabase = createServerSupabase();
   const [{ count: productCount }, { data: orders }] = await Promise.all([
     supabase.from("products").select("id", { count: "exact", head: true }).eq("seller_id", seller.id),
-    supabase.from("orders").select("total, status").eq("seller_id", seller.id),
+    // Unpaid online-payment attempts (abandoned Razorpay checkout) aren't
+    // real orders — exclude them from revenue/pending counts.
+    supabase
+      .from("orders")
+      .select("total, status")
+      .eq("seller_id", seller.id)
+      .neq("payment_status", "pending"),
   ]);
 
   const revenue = (orders ?? [])

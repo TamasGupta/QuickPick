@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Phone, User as UserIcon, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { SkelLine } from "@/components/skeletons";
 
 export default function AccountPage() {
   const supabase = createClient();
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [phone, setPhone] = useState<string | null>(null);
   const [role, setRole] = useState<string>("buyer");
   const [name, setName] = useState("");
@@ -32,6 +34,7 @@ export default function AccountPage() {
         setName(p.full_name ?? "");
         setSavedName(p.full_name ?? "");
       }
+      setLoading(false);
     });
   }, [supabase, router]);
 
@@ -53,8 +56,25 @@ export default function AccountPage() {
     router.refresh();
   }
 
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-md space-y-4">
+        <SkelLine className="h-6 w-32" />
+        <div className="card space-y-3 p-4">
+          <SkelLine className="h-4 w-36" />
+          <SkelLine className="h-5 w-16 rounded-full" />
+          <SkelLine className="h-9 w-full rounded-xl" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <SkelLine className="h-10 rounded-xl" />
+          <SkelLine className="h-10 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-md space-y-4">
+    <div className="mx-auto max-w-md animate-fade-in space-y-4">
       <h1 className="text-xl font-extrabold">My account</h1>
 
       <div className="card space-y-3 p-4">

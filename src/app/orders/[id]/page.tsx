@@ -4,6 +4,7 @@ import { MapPin, ShieldCheck, Bike, Phone } from "lucide-react";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { inr, ORDER_STATUS_LABELS } from "@/lib/utils";
 import { OrderTimeline } from "@/components/OrderTimeline";
+import { LottieIcon } from "@/components/LottieIcon";
 import type { Order, OrderStatus, Address } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -47,8 +48,9 @@ export default async function OrderDetailPage({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       {searchParams.placed && (
-        <div className="animate-fade-in rounded-2xl bg-brand-50 p-4 text-center font-semibold text-brand-700">
-          🎉 Order placed successfully!
+        <div className="animate-fade-in flex flex-col items-center rounded-2xl bg-brand-50 p-2 text-center font-semibold text-brand-700">
+          <LottieIcon name="cart-check" loop={false} className="h-24 w-24" />
+          <p className="-mt-2">Order placed successfully!</p>
         </div>
       )}
 
@@ -68,6 +70,14 @@ export default async function OrderDetailPage({
             <p className="text-3xl font-extrabold tracking-[0.35em] text-ink">{o.delivery_otp}</p>
             <p className="text-xs text-ink-soft">Share this with your delivery partner at handover.</p>
           </div>
+        </section>
+      )}
+
+      {/* On the way */}
+      {o.status === "out_for_delivery" && (
+        <section className="card flex flex-col items-center p-2 text-center">
+          <LottieIcon name="delivery-rider" className="h-32 w-32" />
+          <p className="-mt-2 text-sm font-bold text-ink">Your order is on the way!</p>
         </section>
       )}
 

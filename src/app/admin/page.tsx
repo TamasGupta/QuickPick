@@ -31,7 +31,8 @@ export default async function AdminPage() {
 
   const [{ data: sellers }, { count: orderCount }, { count: productCount }] = await Promise.all([
     supabase.from("sellers").select("id, store_name, city, status").order("created_at", { ascending: false }),
-    supabase.from("orders").select("id", { count: "exact", head: true }),
+    // Exclude abandoned/unpaid online-payment attempts from the count.
+    supabase.from("orders").select("id", { count: "exact", head: true }).neq("payment_status", "pending"),
     supabase.from("products").select("id", { count: "exact", head: true }),
   ]);
 

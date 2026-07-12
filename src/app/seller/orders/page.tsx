@@ -17,6 +17,9 @@ export default async function SellerOrdersPage() {
     .from("orders")
     .select("*")
     .eq("seller_id", seller.id)
+    // Unpaid online-payment attempts (abandoned Razorpay checkout) are not
+    // real orders yet — don't surface them for the seller to prepare.
+    .neq("payment_status", "pending")
     .order("created_at", { ascending: false });
 
   const list = (orders as Order[]) ?? [];

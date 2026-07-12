@@ -1,9 +1,17 @@
 import Link from "next/link";
-import { Zap, Truck, BadgePercent, Leaf, ArrowRight } from "lucide-react";
+import { Zap, BadgePercent, Leaf, ArrowRight, type LucideIcon } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ProductCard } from "@/components/ProductCard";
+import { LottieIcon, type LottieName } from "@/components/LottieIcon";
 import { categoryImage } from "@/lib/categories";
 import type { Category, Product } from "@/lib/types";
+
+interface ValueProp {
+  icon?: LucideIcon;
+  lottie?: LottieName;
+  title: string;
+  sub: string;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -66,17 +74,23 @@ export default async function HomePage({
 
           {/* Value props */}
           <section className="grid grid-cols-3 gap-2.5">
-            {[
-              { icon: Truck, title: "11-min", sub: "Delivery" },
-              { icon: BadgePercent, title: "Best prices", sub: "Everyday" },
-              { icon: Leaf, title: "Farm fresh", sub: "Handpicked" },
-            ].map((v) => (
+            {(
+              [
+                { lottie: "vehicle", title: "11-min", sub: "Delivery" },
+                { icon: BadgePercent, title: "Best prices", sub: "Everyday" },
+                { icon: Leaf, title: "Farm fresh", sub: "Handpicked" },
+              ] satisfies ValueProp[]
+            ).map((v) => (
               <div
                 key={v.title}
                 className="card group flex flex-col items-center gap-1.5 p-3 text-center transition-all hover:-translate-y-0.5 hover:shadow-pop sm:flex-row sm:gap-3 sm:text-left"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-transform duration-300 group-hover:scale-110 group-hover:bg-brand-100">
-                  <v.icon className="h-5 w-5 transition-transform group-hover:animate-wiggle" />
+                  {v.lottie ? (
+                    <LottieIcon name={v.lottie} className="h-7 w-7" />
+                  ) : v.icon ? (
+                    <v.icon className="h-5 w-5 transition-transform group-hover:animate-wiggle" />
+                  ) : null}
                 </span>
                 <div className="min-w-0 leading-tight">
                   <p className="truncate text-xs font-bold text-ink sm:text-sm">{v.title}</p>
