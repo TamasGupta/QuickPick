@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { inr, ORDER_STATUS_LABELS } from "@/lib/utils";
+import { inr, ORDER_STATUS_LABELS, formatIST } from "@/lib/utils";
 import type { OrderStatus } from "@/lib/types";
 
 // Seller drives the order up to "packed"; a delivery partner then picks it up
@@ -56,7 +56,7 @@ export function SellerOrderCard({ order, items }: Props) {
         <span className="badge bg-brand-50 text-brand-700">{ORDER_STATUS_LABELS[status]}</span>
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-        <span>{new Date(order.created_at).toLocaleString("en-IN")}</span>
+        <span>{formatIST(order.created_at)}</span>
         <span>{order.delivery_slot}</span>
       </div>
 

@@ -6,6 +6,21 @@ export function inr(amount: number): string {
   }).format(amount);
 }
 
+// Always renders in Indian Standard Time regardless of server/browser
+// timezone (Vercel's serverless runtime defaults to UTC, which would
+// otherwise show times 5:30 off for Indian users).
+export function formatIST(date: string | Date): string {
+  return new Date(date).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 export const DELIVERY_FEE = Number(process.env.NEXT_PUBLIC_DELIVERY_FEE ?? 25);
 export const MIN_ORDER = Number(process.env.NEXT_PUBLIC_MIN_ORDER ?? 99);
 

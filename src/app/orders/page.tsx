@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { inr, ORDER_STATUS_LABELS } from "@/lib/utils";
+import { inr, ORDER_STATUS_LABELS, formatIST } from "@/lib/utils";
 import type { Order } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +38,7 @@ export default async function OrdersPage() {
             </div>
             <div className="mt-2 flex items-center justify-between text-sm">
               <span className="text-gray-500">
-                {new Date(o.created_at).toLocaleString("en-IN")}
+                {formatIST(o.created_at)}
               </span>
               <span className="font-bold">{inr(o.total)}</span>
             </div>
