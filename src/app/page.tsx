@@ -158,13 +158,7 @@ export default async function HomePage({
           <div className="card p-10 text-center text-ink-soft">
             <p className="text-5xl">🧺</p>
             <p className="mt-3 font-semibold text-ink">No products found.</p>
-            <p className="mt-1 text-sm">
-              Are you a seller?{" "}
-              <Link href="/seller" className="font-semibold text-brand-700 underline">
-                Upload your catalog
-              </Link>{" "}
-              to get started.
-            </p>
+            <p className="mt-1 text-sm">Try a different search or check back soon.</p>
           </div>
         ) : (
           <div className="stagger grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">

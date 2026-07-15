@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Store } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
-import { SellerOnboard } from "@/components/SellerOnboard";
 import { inr } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,19 @@ export const dynamic = "force-dynamic";
 export default async function SellerDashboard() {
   const { user, seller } = await getMySeller();
   if (!user) redirect("/login");
-  if (!seller) return <SellerOnboard />;
+  if (!seller) {
+    return (
+      <div className="card mx-auto max-w-md p-8 text-center text-ink-soft">
+        <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+          <Store className="h-7 w-7" />
+        </span>
+        <p className="font-semibold text-ink">This account isn't set up as a seller</p>
+        <p className="mt-1 text-sm">
+          Seller accounts are created by the QuickPick team. Contact support to get onboarded.
+        </p>
+      </div>
+    );
+  }
 
   const supabase = createServerSupabase();
   const [{ count: productCount }, { data: orders }] = await Promise.all([

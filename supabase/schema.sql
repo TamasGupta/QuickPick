@@ -171,12 +171,15 @@ create table if not exists orders (
   delivery_slot text,
   razorpay_order_id text,
   razorpay_payment_id text,
+  rider_id uuid references profiles(id) on delete set null,
+  delivery_otp text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_orders_buyer on orders(buyer_id);
 create index if not exists idx_orders_seller on orders(seller_id);
 create index if not exists idx_orders_status on orders(status);
+create index if not exists idx_orders_rider on orders(rider_id);
 
 create table if not exists order_items (
   id uuid primary key default uuid_generate_v4(),
@@ -243,13 +246,33 @@ drop policy if exists "profiles_update_self" on profiles;
 create policy "profiles_update_self" on profiles
   for update using (id = auth.uid());
 
+-- Sellers and delivery partners are onboarded by the super admin only — a
+-- BEFORE UPDATE trigger (not RLS) blocks a user from self-promoting their
+-- own role, since RLS can't cleanly compare old vs new column values.
+-- `current_user <> 'service_role'` lets our trusted server-side admin API
+-- routes (which connect with the service-role key and have no auth.uid()
+-- JWT context at all) set roles; is_admin() covers the RLS-bound client path.
+create or replace function protect_profile_role()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.role is distinct from old.role and current_user <> 'service_role' and not is_admin() then
+    new.role := old.role;
+  end if;
+  return new;
+end; $$;
+
+drop trigger if exists trg_protect_profile_role on profiles;
+create trigger trg_protect_profile_role before update on profiles
+  for each row execute function protect_profile_role();
+
 -- SELLERS: public can read approved; owner reads/writes own; admin all
 drop policy if exists "sellers_read" on sellers;
 create policy "sellers_read" on sellers
   for select using (status = 'approved' or owner_id = auth.uid() or is_admin());
+-- Only admins create sellers (via the service-role admin API route).
 drop policy if exists "sellers_insert_own" on sellers;
 create policy "sellers_insert_own" on sellers
-  for insert with check (owner_id = auth.uid());
+  for insert with check (is_admin());
 drop policy if exists "sellers_update_own" on sellers;
 create policy "sellers_update_own" on sellers
   for update using (owner_id = auth.uid() or is_admin());

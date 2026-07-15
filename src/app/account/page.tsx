@@ -82,9 +82,11 @@ export default function AccountPage() {
           <Phone className="h-4 w-4 text-ink-faint" />
           <span className="text-ink-soft">{phone ? `+${phone}` : "No phone on file"}</span>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="badge bg-brand-50 text-brand-700 uppercase">{role}</span>
-        </div>
+        {role !== "buyer" && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="badge bg-brand-50 text-brand-700 uppercase">{role}</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 pt-1">
           <UserIcon className="h-4 w-4 shrink-0 text-ink-faint" />
@@ -104,9 +106,10 @@ export default function AccountPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${role === "buyer" ? "grid-cols-1" : "grid-cols-2"}`}>
         <Link href="/orders" className="btn-outline">My orders</Link>
-        <Link href="/seller" className="btn-outline">Seller portal</Link>
+        {role === "seller" && <Link href="/seller" className="btn-outline">Seller portal</Link>}
+        {role === "rider" && <Link href="/rider" className="btn-outline">Delivery dashboard</Link>}
         {role === "admin" && <Link href="/admin" className="btn-outline col-span-2">Admin console</Link>}
       </div>
 
