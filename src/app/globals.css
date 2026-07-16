@@ -21,6 +21,16 @@
     background-attachment: fixed;
     font-feature-settings: "cv11", "ss01";
   }
+
+  /* Hide scrollbars app-wide (native-app feel) — scrolling itself still
+     works, only the visual scrollbar track/thumb is suppressed. */
+  html {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* old Edge/IE */
+  }
+  html::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/new Edge */
+  }
 }
 
 @layer components {

@@ -30,6 +30,7 @@ export interface Product {
   stock: number;
   sku: string | null;
   image_url: string | null;
+  image_source: "seller" | "auto" | null;
   brand: string | null;
   is_active: boolean;
 }

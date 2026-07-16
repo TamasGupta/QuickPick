@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
+import { fetchProductImage, mapWithConcurrency } from "@/lib/productImage";
 import type { ParsedProductRow } from "@/lib/types";
+
+// Cap how many auto-image lookups one import triggers, so a huge catalog
+// upload can't blow the route's time budget — the rest simply import without
+// a photo, same as today, and can be backfilled later by the recheck job.
+// Concurrency is kept low because Open Food Facts rate-limits anonymous
+// requests hard — firing many in parallel makes them ALL fail at once.
+const MAX_AUTO_IMAGE_LOOKUPS = 40;
+const IMAGE_LOOKUP_CONCURRENCY = 3;
 
 export const maxDuration = 60;
 
@@ -58,20 +67,38 @@ export async function POST(req: Request) {
   const valid = rows.filter((r) => r._errors.length === 0 && r.name && r.price !== null);
   const errored = rows.filter((r) => r._errors.length > 0);
 
-  const payload = valid.map((r) => ({
-    seller_id: seller.id,
-    name: r.name,
-    description: r.description ?? null,
-    category_id: r.category ? catMap.get(r.category.toLowerCase()) ?? null : null,
-    price: r.price,
-    mrp: r.mrp ?? null,
-    unit: r.unit ?? "unit",
-    stock: r.stock ?? 0,
-    sku: r.sku ?? null,
-    image_url: r.image_url ?? null,
-    brand: r.brand ?? null,
-    is_active: true,
-  }));
+  // Auto-fetch a photo (from Open Food Facts) for rows the seller didn't
+  // supply an image for — bounded so one huge upload can't time out the
+  // route; any rows past the cap just import without a photo for now.
+  const needsImage = valid.filter((r) => !r.image_url).slice(0, MAX_AUTO_IMAGE_LOOKUPS);
+  const fetchedImages = await mapWithConcurrency(needsImage, IMAGE_LOOKUP_CONCURRENCY, (r) =>
+    fetchProductImage(r.name, r.brand)
+  );
+  const autoImageByName = new Map(needsImage.map((r, i) => [r, fetchedImages[i]]));
+
+  const now = new Date().toISOString();
+  const payload = valid.map((r) => {
+    const autoImage = autoImageByName.get(r);
+    // `||` (not `??`) — a parsed empty-string image_url must fall through to
+    // the auto-fetched one; `??` only treats null/undefined as "absent".
+    const image_url = r.image_url || autoImage || null;
+    return {
+      seller_id: seller.id,
+      name: r.name,
+      description: r.description ?? null,
+      category_id: r.category ? catMap.get(r.category.toLowerCase()) ?? null : null,
+      price: r.price,
+      mrp: r.mrp ?? null,
+      unit: r.unit ?? "unit",
+      stock: r.stock ?? 0,
+      sku: r.sku ?? null,
+      image_url,
+      image_source: r.image_url ? "seller" : autoImage ? "auto" : null,
+      image_checked_at: autoImage ? now : null,
+      brand: r.brand ?? null,
+      is_active: true,
+    };
+  });
 
   // Batch inserts (500/batch) for large catalogs.
   let imported = 0;

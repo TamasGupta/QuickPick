@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { Zap, BadgePercent, Leaf, ArrowRight, type LucideIcon } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { ProductCard } from "@/components/ProductCard";
+import { ProductGrid } from "@/components/ProductGrid";
 import { LottieIcon, type LottieName } from "@/components/LottieIcon";
 import { categoryImage } from "@/lib/categories";
+import { PRODUCTS_PAGE_SIZE, encodeProductCursor } from "@/lib/utils";
 import type { Category, Product } from "@/lib/types";
+
+type ProductRow = Product & { created_at: string };
 
 interface ValueProp {
   icon?: LucideIcon;
@@ -29,7 +32,12 @@ export default async function HomePage({
     .select("*")
     .eq("is_active", true)
     .order("created_at", { ascending: false })
-    .limit(60);
+    // id breaks ties — a whole bulk-import batch can share one created_at
+    // timestamp, so ordering by created_at alone isn't a stable pagination
+    // key (see encodeProductCursor in lib/utils.ts).
+    .order("id", { ascending: false })
+    // Fetch one extra row to know whether there's a next page.
+    .limit(PRODUCTS_PAGE_SIZE + 1);
 
   const activeCat = (categories as Category[] | null)?.find((c) => c.slug === searchParams.cat);
   if (activeCat) query = query.eq("category_id", activeCat.id);
@@ -38,7 +46,10 @@ export default async function HomePage({
   }
 
   const { data: products } = await query;
-  const list = (products as Product[] | null) ?? [];
+  const rows = (products as ProductRow[] | null) ?? [];
+  const hasMore = rows.length > PRODUCTS_PAGE_SIZE;
+  const list = hasMore ? rows.slice(0, PRODUCTS_PAGE_SIZE) : rows;
+  const nextCursor = hasMore ? encodeProductCursor(list[list.length - 1]) : null;
   const searching = Boolean(searchParams.q || searchParams.cat);
 
   return (
@@ -161,11 +172,13 @@ export default async function HomePage({
             <p className="mt-1 text-sm">Try a different search or check back soon.</p>
           </div>
         ) : (
-          <div className="stagger grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {list.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
+          <ProductGrid
+            key={`${searchParams.q ?? ""}-${searchParams.cat ?? ""}`}
+            initialProducts={list}
+            initialNextCursor={nextCursor}
+            q={searchParams.q}
+            catSlug={searchParams.cat}
+          />
         )}
       </section>
     </div>
