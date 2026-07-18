@@ -219,6 +219,19 @@ create table if not exists upload_jobs (
 create index if not exists idx_upload_jobs_seller on upload_jobs(seller_id);
 
 -- ------------------------------------------------------------
+-- PRODUCT IMAGE CACHE (shared brand+name+unit -> image_url lookups, so the
+-- same national-brand SKU is only ever looked up via Apify once across the
+-- whole app, not once per seller/import). Server-only, see lib/productImage.ts.
+-- ------------------------------------------------------------
+create table if not exists product_image_cache (
+  id uuid primary key default uuid_generate_v4(),
+  cache_key text not null unique,
+  image_url text,
+  checked_at timestamptz not null default now()
+);
+create index if not exists idx_product_image_cache_key on product_image_cache(cache_key);
+
+-- ------------------------------------------------------------
 -- ATOMIC STOCK DECREMENT (called on payment success / COD accept)
 -- Decrements stock for each item; raises if insufficient.
 -- ------------------------------------------------------------
@@ -248,6 +261,8 @@ alter table addresses    enable row level security;
 alter table orders       enable row level security;
 alter table order_items  enable row level security;
 alter table upload_jobs  enable row level security;
+-- No policies: only the service-role client (bypasses RLS) touches this table.
+alter table product_image_cache enable row level security;
 
 -- PROFILES: user sees/edits own; admin sees all
 drop policy if exists "profiles_self" on profiles;
