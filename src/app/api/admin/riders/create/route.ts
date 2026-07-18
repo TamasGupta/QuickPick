@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireAdmin, toE164 } from "@/lib/admin";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // POST /api/admin/riders/create — super admin onboards a new delivery partner.
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/admin/riders/create", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -51,4 +52,4 @@ export async function POST(req: Request) {
   if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, rider_id: userId, phone });
-}
+});

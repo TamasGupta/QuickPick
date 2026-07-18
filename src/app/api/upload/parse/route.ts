@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { detectType, parseProductFile } from "@/lib/parsers";
+import { withApiLogging } from "@/lib/apiLogger";
 
 export const maxDuration = 60;
 
 // POST /api/upload/parse — accepts a multipart file, returns normalized rows
 // for the seller to preview/edit before import. Does NOT write products.
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/upload/parse", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -48,4 +49,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+});

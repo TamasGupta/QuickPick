@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { withApiLogging } from "@/lib/apiLogger";
 import type { OrderStatus } from "@/lib/types";
 
 const ALLOWED: OrderStatus[] = [
@@ -12,10 +13,9 @@ const ALLOWED: OrderStatus[] = [
 
 // POST /api/orders/:id/status — seller/admin advances the order status.
 // RLS on `orders` ensures only the owning seller (or admin) can update.
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export const POST = withApiLogging(
+  "/api/orders/[id]/status",
+  async (req: Request, { params }: { params: { id: string } }) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -34,4 +34,5 @@ export async function POST(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 403 });
   return NextResponse.json({ ok: true, status });
-}
+  }
+);

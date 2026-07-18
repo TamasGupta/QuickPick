@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { enrichOrders, requireRider } from "@/lib/rider";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // GET /api/rider/orders?scope=available|active|history
 // Returns delivery jobs for the logged-in rider. Uses the service client so we
 // can surface buyer/address details without loosening RLS across the board.
-export async function GET(req: Request) {
+export const GET = withApiLogging("/api/rider/orders", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -37,4 +38,4 @@ export async function GET(req: Request) {
 
   const orders = await enrichOrders(service, (data ?? []) as Record<string, unknown>[]);
   return NextResponse.json({ orders });
-}
+});

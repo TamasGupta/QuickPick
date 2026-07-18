@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { fetchProductImage, mapWithConcurrency } from "@/lib/productImage";
+import { withApiLogging } from "@/lib/apiLogger";
 import type { ParsedProductRow } from "@/lib/types";
 
 // Cap how many auto-image lookups one import triggers, so a huge catalog
@@ -16,7 +17,7 @@ export const maxDuration = 60;
 // POST /api/upload/import — persist confirmed rows as products for the
 // seller. Only rows with no validation errors are imported. Categories are
 // resolved by name (created if missing). Batched inserts for scale.
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/upload/import", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -130,4 +131,4 @@ export async function POST(req: Request) {
     skipped: errored.length,
     total: rows.length,
   });
-}
+});

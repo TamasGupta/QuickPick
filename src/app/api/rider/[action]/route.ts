@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireRider } from "@/lib/rider";
+import { withApiLogging } from "@/lib/apiLogger";
 
 const now = () => new Date().toISOString();
 
 // POST /api/rider/claim | /api/rider/pickup | /api/rider/deliver
-export async function POST(
-  req: Request,
-  { params }: { params: { action: string } }
-) {
+export const POST = withApiLogging(
+  "/api/rider/[action]",
+  async (req: Request, { params }: { params: { action: string } }) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -75,4 +75,5 @@ export async function POST(
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 404 });
-}
+  }
+);

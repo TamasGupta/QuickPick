@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { PRODUCTS_PAGE_SIZE, encodeProductCursor, decodeProductCursor } from "@/lib/utils";
+import { withApiLogging } from "@/lib/apiLogger";
 import type { Category, Product } from "@/lib/types";
 
 type ProductRow = Product & { created_at: string };
@@ -10,7 +11,7 @@ type ProductRow = Product & { created_at: string };
 // so results stay stable even as new products are added while a buyer is
 // scrolling, ordered by (created_at, id) — id breaks ties, since a whole
 // bulk-import batch can share one created_at timestamp (see lib/utils.ts).
-export async function GET(req: Request) {
+export const GET = withApiLogging("/api/products", async (req: Request) => {
   const { searchParams } = new URL(req.url);
   const catSlug = searchParams.get("cat");
   const q = searchParams.get("q");
@@ -56,4 +57,4 @@ export async function GET(req: Request) {
   const nextCursor = hasMore ? encodeProductCursor(products[products.length - 1]) : null;
 
   return NextResponse.json({ products, nextCursor });
-}
+});

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireAdmin, toE164 } from "@/lib/admin";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // POST /api/admin/sellers/create — super admin onboards a new seller.
 // Creates (or reuses) the phone-auth account, sets role='seller', and
 // creates an approved store — sellers no longer self-register.
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/admin/sellers/create", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -22,6 +23,8 @@ export async function POST(req: Request) {
     city?: string;
     pincode?: string;
     address_line?: string;
+    lat?: number | null;
+    lng?: number | null;
   };
   if (!body.phone || !body.store_name) {
     return NextResponse.json({ error: "phone and store_name are required" }, { status: 400 });
@@ -71,6 +74,8 @@ export async function POST(req: Request) {
         pincode: body.pincode || null,
         address_line: body.address_line || null,
         phone: phone.replace("+", ""),
+        lat: typeof body.lat === "number" ? body.lat : null,
+        lng: typeof body.lng === "number" ? body.lng : null,
       },
       { onConflict: "owner_id" }
     )
@@ -79,4 +84,4 @@ export async function POST(req: Request) {
   if (sellerErr) return NextResponse.json({ error: sellerErr.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, seller_id: seller.id, phone });
-}
+});

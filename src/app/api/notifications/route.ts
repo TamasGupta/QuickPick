@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // GET /api/notifications — badge counts for the current user, by context.
 //   buyerActive    -> buyer's in-progress orders
 //   sellerNew      -> new orders awaiting the seller
 //   riderAvailable -> unclaimed packed orders (for riders)
-export async function GET() {
+export const GET = withApiLogging("/api/notifications", async (_req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -58,4 +59,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ buyerActive, sellerNew, riderAvailable });
-}
+});

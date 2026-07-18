@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MapPin } from "lucide-react";
+import { MapPin, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE } from "@/lib/utils";
+import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { SkelLine } from "@/components/skeletons";
 import type { Address } from "@/lib/types";
 
@@ -16,6 +17,31 @@ declare global {
   interface Window {
     Razorpay?: any;
   }
+}
+
+// Wraps navigator.geolocation with consistent, logged error handling so a
+// failure is actually diagnosable (previously errors were swallowed with no
+// detail anywhere — the #1 reported cause of "location isn't working").
+function getBrowserLocation(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation isn't supported in this browser."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        console.error("Geolocation failed:", err.code, err.message);
+        const messages: Record<number, string> = {
+          1: "Location permission was denied. Enable it in your browser/site settings.",
+          2: "Your device couldn't determine a location right now.",
+          3: "Location request timed out — try again.",
+        };
+        reject(new Error(messages[err.code] ?? err.message));
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
 }
 
 export default function CheckoutPage() {
@@ -35,26 +61,47 @@ export default function CheckoutPage() {
   const [form, setForm] = useState({ line1: "", line2: "", city: "", pincode: "", label: "Home" });
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "locating" | "done" | "error">("idle");
+  const [geoError, setGeoError] = useState<string | null>(null);
+
+  // Pinning location on an already-saved address (previously impossible).
+  const [pinningId, setPinningId] = useState<string | null>(null);
+
+  // Client-side heads-up for the 10km delivery radius — the authoritative
+  // check runs server-side in /api/orders regardless.
+  const [sellerLoc, setSellerLoc] = useState<{ lat: number; lng: number } | null>(null);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
   const sub = subtotal();
   const total = sub + DELIVERY_FEE;
 
-  // Capture the buyer's precise coordinates so the delivery partner can
-  // navigate to the exact drop point.
-  function detectLocation() {
-    if (!navigator.geolocation) {
-      setGeoStatus("error");
-      return;
-    }
+  async function detectLocation() {
     setGeoStatus("locating");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGeoStatus("done");
-      },
-      () => setGeoStatus("error"),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    setGeoError(null);
+    try {
+      const pos = await getBrowserLocation();
+      setGeo(pos);
+      setGeoStatus("done");
+    } catch (err) {
+      setGeoStatus("error");
+      setGeoError((err as Error).message);
+    }
+  }
+
+  async function pinExistingAddress(addr: Address) {
+    setPinningId(addr.id);
+    try {
+      const pos = await getBrowserLocation();
+      const { error } = await supabase
+        .from("addresses")
+        .update({ lat: pos.lat, lng: pos.lng })
+        .eq("id", addr.id);
+      if (error) throw error;
+      setAddresses((prev) => prev.map((a) => (a.id === addr.id ? { ...a, ...pos } : a)));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPinningId(null);
+    }
   }
 
   useEffect(() => {
@@ -83,6 +130,33 @@ export default function CheckoutPage() {
     });
   }, [supabase, router]);
 
+  // Fetch the seller's store location once, for the client-side distance check.
+  useEffect(() => {
+    const sid = sellerId();
+    if (!sid) return;
+    fetch(`/api/sellers/${sid}/location`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.lat != null && json?.lng != null) {
+          setSellerLoc({ lat: json.lat, lng: json.lng });
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Recompute distance whenever the selected address (or its coordinates) changes.
+  useEffect(() => {
+    const addr = addresses.find((a) => a.id === addressId);
+    if (sellerLoc && addr?.lat != null && addr?.lng != null) {
+      setDistanceKm(haversineKm(sellerLoc, { lat: addr.lat, lng: addr.lng }));
+    } else {
+      setDistanceKm(null);
+    }
+  }, [addressId, addresses, sellerLoc]);
+
+  const outOfRange = distanceKm !== null && distanceKm > MAX_DELIVERY_RADIUS_KM;
+
   async function saveAddress(e: React.FormEvent) {
     e.preventDefault();
     if (!userId) return;
@@ -104,11 +178,13 @@ export default function CheckoutPage() {
     setShowAddr(false);
     setGeo(null);
     setGeoStatus("idle");
+    setGeoError(null);
   }
 
   async function placeOrder() {
     setError(null);
     if (!addressId) return setError("Please select a delivery address.");
+    if (outOfRange) return setError("This store doesn't deliver to your address.");
     setPlacing(true);
     try {
       // 1) Create the order server-side.
@@ -210,9 +286,23 @@ export default function CheckoutPage() {
                   onChange={() => setAddressId(a.id)}
                   className="mt-1"
                 />
-                <span>
+                <span className="flex-1">
                   <b>{a.label}</b> — {a.line1}, {a.line2 && `${a.line2}, `}
                   {a.city} {a.pincode}
+                  {a.lat == null && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        pinExistingAddress(a);
+                      }}
+                      disabled={pinningId === a.id}
+                      className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline"
+                    >
+                      <MapPin className="h-3 w-3" />
+                      {pinningId === a.id ? "Locating…" : "Pin exact location"}
+                    </button>
+                  )}
                 </span>
               </label>
             ))}
@@ -249,7 +339,7 @@ export default function CheckoutPage() {
                 </span>
               )}
               {geoStatus === "error" && (
-                <span className="text-xs text-red-500">Couldn&apos;t get location — you can still save.</span>
+                <span className="text-xs text-red-500">{geoError ?? "Couldn't get location — you can still save."}</span>
               )}
             </div>
             <p className="col-span-2 -mt-1 text-[11px] text-ink-faint">
@@ -260,6 +350,16 @@ export default function CheckoutPage() {
           </form>
         )}
       </section>
+
+      {outOfRange && (
+        <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            This store is about {distanceKm!.toFixed(1)} km from your address — we currently only
+            deliver within {MAX_DELIVERY_RADIUS_KM} km. Choose a closer address to continue.
+          </span>
+        </div>
+      )}
 
       {/* Slot */}
       <section className="card p-4">
@@ -305,7 +405,7 @@ export default function CheckoutPage() {
 
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
 
-      <button className="btn-primary w-full" disabled={placing} onClick={placeOrder}>
+      <button className="btn-primary w-full" disabled={placing || outOfRange} onClick={placeOrder}>
         {placing ? "Placing order…" : pay === "cod" ? `Place order · ${inr(total)}` : `Pay ${inr(total)}`}
       </button>
     </div>
