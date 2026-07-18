@@ -105,6 +105,10 @@ create table if not exists products (
   stock integer not null default 0 check (stock >= 0),
   sku text,
   image_url text,
+  -- 'seller' = uploaded/set by the seller; 'auto' = fetched from Open Food
+  -- Facts during import — only 'auto' images get periodically link-checked.
+  image_source text check (image_source in ('seller', 'auto')),
+  image_checked_at timestamptz,
   brand text,
   is_active boolean not null default true,
   search_tsv tsvector,
@@ -112,6 +116,7 @@ create table if not exists products (
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_products_seller on products(seller_id);
+create index if not exists idx_products_image_source on products(image_source);
 create index if not exists idx_products_category on products(category_id);
 create index if not exists idx_products_active on products(is_active);
 create index if not exists idx_products_search on products using gin(search_tsv);

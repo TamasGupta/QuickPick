@@ -4,6 +4,7 @@ import { AdminSellerRow } from "@/components/AdminSellerRow";
 import { AdminRiderRow } from "@/components/admin/AdminRiderRow";
 import { CreateSellerForm } from "@/components/admin/CreateSellerForm";
 import { CreateRiderForm } from "@/components/admin/CreateRiderForm";
+import { RefreshImagesButton } from "@/components/admin/RefreshImagesButton";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,8 @@ export default async function AdminPage() {
         <CreateSellerForm />
         <CreateRiderForm />
       </div>
+
+      <RefreshImagesButton />
 
       <div>
         <h2 className="mb-2 font-bold">Sellers {pending > 0 && `(${pending} pending)`}</h2>
