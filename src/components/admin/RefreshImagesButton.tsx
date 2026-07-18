@@ -19,7 +19,7 @@ export function RefreshImagesButton() {
       return;
     }
     setResult(
-      `Checked ${json.checked} · fixed ${json.fixed} · cleared ${json.cleared}` +
+      `Checked ${json.checked} · filled ${json.filled} · fixed ${json.fixed} · cleared ${json.cleared}` +
         (json.remaining ? " · more pending, run again" : "")
     );
   }
@@ -30,13 +30,14 @@ export function RefreshImagesButton() {
         <ImageOff className="h-4 w-4 text-accent-600" /> Auto-fetched product images
       </h3>
       <p className="text-xs text-ink-faint">
-        Re-checks images we fetched automatically (Open Food Facts) for broken links and looks for
-        a replacement. Seller-uploaded images are never touched.
+        Fetches photos for products with no image yet, and re-checks previously auto-fetched images
+        for broken links. Seller-uploaded images are never touched. Runs in small batches — click
+        again if it says more are pending.
       </p>
       {result && <p className="text-sm text-brand-700">{result}</p>}
       <button className="btn-outline" onClick={run} disabled={loading}>
         {loading ? <Spinner className="h-4 w-4 border-brand-200 border-t-brand-600" /> : <RefreshCw className="h-4 w-4" />}
-        Refresh broken images
+        Refresh product images
       </button>
     </div>
   );

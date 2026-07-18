@@ -7,9 +7,11 @@ import type { ParsedProductRow } from "@/lib/types";
 // Cap how many auto-image lookups one import triggers, so a huge catalog
 // upload can't blow the route's time budget — the rest simply import without
 // a photo, same as today, and can be backfilled later by the recheck job.
-// Concurrency is kept low because Open Food Facts rate-limits anonymous
-// requests hard — firing many in parallel makes them ALL fail at once.
-const MAX_AUTO_IMAGE_LOOKUPS = 40;
+// Apify's Google Images Scraper spins up a real browser per query (much
+// slower AND billed per-use, unlike the old free Open Food Facts lookup), so
+// both the cap and concurrency are kept low to bound cost and stay inside
+// maxDuration.
+const MAX_AUTO_IMAGE_LOOKUPS = 15;
 const IMAGE_LOOKUP_CONCURRENCY = 3;
 
 export const maxDuration = 60;
@@ -68,12 +70,13 @@ export const POST = withApiLogging("/api/upload/import", async (req: Request) =>
   const valid = rows.filter((r) => r._errors.length === 0 && r.name && r.price !== null);
   const errored = rows.filter((r) => r._errors.length > 0);
 
-  // Auto-fetch a photo (from Open Food Facts) for rows the seller didn't
-  // supply an image for — bounded so one huge upload can't time out the
-  // route; any rows past the cap just import without a photo for now.
+  // Auto-fetch a photo (via Apify's Google Images Scraper) for rows the
+  // seller didn't supply an image for — bounded so one huge upload can't
+  // time out the route or run up Apify usage; any rows past the cap just
+  // import without a photo for now.
   const needsImage = valid.filter((r) => !r.image_url).slice(0, MAX_AUTO_IMAGE_LOOKUPS);
   const fetchedImages = await mapWithConcurrency(needsImage, IMAGE_LOOKUP_CONCURRENCY, (r) =>
-    fetchProductImage(r.name, r.brand)
+    fetchProductImage(r.name, r.brand, r.unit)
   );
   const autoImageByName = new Map(needsImage.map((r, i) => [r, fetchedImages[i]]));
 
