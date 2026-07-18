@@ -51,6 +51,7 @@ export interface Address {
   line1: string;
   line2: string | null;
   city: string | null;
+  state: string | null;
   pincode: string;
   lat: number | null;
   lng: number | null;

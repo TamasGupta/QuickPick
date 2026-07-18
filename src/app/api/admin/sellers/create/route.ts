@@ -21,6 +21,7 @@ export const POST = withApiLogging("/api/admin/sellers/create", async (req: Requ
     full_name?: string;
     store_name?: string;
     city?: string;
+    state?: string;
     pincode?: string;
     address_line?: string;
     lat?: number | null;
@@ -71,6 +72,7 @@ export const POST = withApiLogging("/api/admin/sellers/create", async (req: Requ
         store_name: body.store_name,
         status: "approved",
         city: body.city || null,
+        state: body.state || null,
         pincode: body.pincode || null,
         address_line: body.address_line || null,
         phone: phone.replace("+", ""),

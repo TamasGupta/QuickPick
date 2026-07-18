@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Zap, MapPin, Search, ShoppingCart, ChevronDown, User } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { createClient } from "@/lib/supabase/client";
+import type { Address } from "@/lib/types";
 
 export function Header() {
   const rawCount = useCart((s) => s.count());
@@ -15,6 +16,7 @@ export function Header() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [q, setQ] = useState(params.get("q") ?? "");
   const [mounted, setMounted] = useState(false);
+  const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
   const supabase = createClient();
   // Cart count comes from a persisted store that rehydrates on the client;
   // gate it behind `mounted` so SSR and first client render match.
@@ -32,6 +34,19 @@ export function Header() {
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
+
+  useEffect(() => {
+    if (!loggedIn) {
+      setDefaultAddress(null);
+      return;
+    }
+    supabase
+      .from("addresses")
+      .select("*")
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .then(({ data }) => setDefaultAddress((data?.[0] as Address) ?? null));
+  }, [supabase, loggedIn]);
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -52,11 +67,20 @@ export function Header() {
         {/* Delivery + location (desktop) */}
         <div className="hidden shrink-0 flex-col leading-tight sm:flex">
           <span className="text-[13px] font-extrabold text-ink">Delivery in 11 minutes</span>
-          <button className="flex items-center gap-1 text-xs text-ink-soft">
-            <MapPin className="h-3 w-3" />
-            <span className="max-w-[180px] truncate">Home · Bengaluru 560001</span>
-            <ChevronDown className="h-3 w-3" />
-          </button>
+          {mounted && loggedIn && defaultAddress ? (
+            <span className="flex items-center gap-1 text-xs text-ink-soft">
+              <MapPin className="h-3 w-3" />
+              <span className="max-w-[180px] truncate">
+                {defaultAddress.label} · {defaultAddress.city ?? ""} {defaultAddress.pincode}
+              </span>
+            </span>
+          ) : (
+            <Link href="/checkout" className="flex items-center gap-1 text-xs text-ink-soft">
+              <MapPin className="h-3 w-3" />
+              <span>Set delivery location</span>
+              <ChevronDown className="h-3 w-3" />
+            </Link>
+          )}
         </div>
 
         {/* Search (desktop) */}

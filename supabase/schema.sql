@@ -74,6 +74,7 @@ create table if not exists sellers (
   phone text,
   address_line text,
   city text,
+  state text,
   pincode text,
   -- Nullable: orders from sellers without a pinned location aren't blocked
   -- by the 10km delivery-radius check (see /api/orders and lib/geo.ts).
@@ -156,6 +157,7 @@ create table if not exists addresses (
   line1 text not null,
   line2 text,
   city text,
+  state text,
   pincode text not null,
   lat double precision,
   lng double precision,
