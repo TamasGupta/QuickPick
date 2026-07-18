@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, Minus, Clock } from "lucide-react";
 import { useCart } from "@/store/cart";
-import { inr } from "@/lib/utils";
+import { inr, MAX_CART_ITEMS } from "@/lib/utils";
 import type { Product } from "@/lib/types";
 
 export function ProductCard({ product }: { product: Product }) {
@@ -10,6 +11,23 @@ export function ProductCard({ product }: { product: Product }) {
   const add = useCart((s) => s.add);
   const setQty = useCart((s) => s.setQty);
   const inCart = items.find((i) => i.id === product.id);
+  const [limitHit, setLimitHit] = useState(false);
+
+  function handleAdd() {
+    const ok = add({
+      id: product.id,
+      seller_id: product.seller_id,
+      name: product.name,
+      price: product.price,
+      image_url: product.image_url,
+      unit: product.unit,
+      stock: product.stock,
+    });
+    if (!ok) {
+      setLimitHit(true);
+      setTimeout(() => setLimitHit(false), 3000);
+    }
+  }
   const out = product.stock <= 0;
   const discount =
     product.mrp && product.mrp > product.price
@@ -74,24 +92,16 @@ export function ProductCard({ product }: { product: Product }) {
             </button>
           </div>
         ) : (
-          <button
-            className="add-pill"
-            onClick={() =>
-              add({
-                id: product.id,
-                seller_id: product.seller_id,
-                name: product.name,
-                price: product.price,
-                image_url: product.image_url,
-                unit: product.unit,
-                stock: product.stock,
-              })
-            }
-          >
+          <button className="add-pill" onClick={handleAdd}>
             Add
           </button>
         )}
       </div>
+      {limitHit && (
+        <p className="mt-1 text-[11px] font-semibold text-red-500">
+          Cart limit reached — max {MAX_CART_ITEMS} products at a time.
+        </p>
+      )}
     </div>
   );
 }

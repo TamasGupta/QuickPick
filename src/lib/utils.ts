@@ -23,6 +23,13 @@ export function formatIST(date: string | Date): string {
 
 export const DELIVERY_FEE = Number(process.env.NEXT_PUBLIC_DELIVERY_FEE ?? 25);
 
+// Quick-commerce v1 rule: cap distinct products per cart/order. Doesn't
+// limit the quantity of an item already added, just how many different
+// products. Enforced client-side (store/cart.ts, so a buyer can't even add
+// a 21st) and re-checked server-side (/api/orders, since the client cart is
+// never trusted directly).
+export const MAX_CART_ITEMS = 20;
+
 // Products per page for the home/search/category infinite-scroll grid.
 export const PRODUCTS_PAGE_SIZE = 24;
 

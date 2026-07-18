@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { MAX_CART_ITEMS } from "@/lib/utils";
 
 export interface CartItem {
   id: string; // product id
@@ -16,7 +17,9 @@ export interface CartItem {
 
 interface CartState {
   items: CartItem[];
-  add: (item: Omit<CartItem, "qty">, qty?: number) => void;
+  // Returns false (and doesn't add) when the item is new and the cart is
+  // already at MAX_CART_ITEMS distinct products.
+  add: (item: Omit<CartItem, "qty">, qty?: number) => boolean;
   remove: (id: string) => void;
   setQty: (id: string, qty: number) => void;
   clear: () => void;
@@ -31,9 +34,11 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
-      add: (item, qty = 1) =>
-        set((state) => {
-          const existing = state.items.find((i) => i.id === item.id);
+      add: (item, qty = 1) => {
+        const state = get();
+        const existing = state.items.find((i) => i.id === item.id);
+        if (!existing && state.items.length >= MAX_CART_ITEMS) return false;
+        set(() => {
           if (existing) {
             return {
               items: state.items.map((i) =>
@@ -44,7 +49,9 @@ export const useCart = create<CartState>()(
             };
           }
           return { items: [...state.items, { ...item, qty: Math.min(qty, item.stock) }] };
-        }),
+        });
+        return true;
+      },
       remove: (id) =>
         set((state) => ({ items: state.items.filter((i) => i.id !== id) })),
       setQty: (id, qty) =>
