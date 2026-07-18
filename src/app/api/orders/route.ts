@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
-import { DELIVERY_FEE } from "@/lib/utils";
+import { DELIVERY_FEE, MAX_CART_ITEMS } from "@/lib/utils";
 import { withApiLogging } from "@/lib/apiLogger";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 
@@ -31,6 +31,9 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
 
   if (!seller_id || !items?.length) {
     return NextResponse.json({ error: "Invalid order payload" }, { status: 400 });
+  }
+  if (items.length > MAX_CART_ITEMS) {
+    return NextResponse.json({ error: `Orders are limited to ${MAX_CART_ITEMS} products at a time.` }, { status: 400 });
   }
 
   const service = createServiceSupabase();
