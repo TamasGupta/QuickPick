@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MapPin, TriangleAlert } from "lucide-react";
+import { MapPin, TriangleAlert, Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE } from "@/lib/utils";
@@ -44,6 +44,29 @@ function getBrowserLocation(): Promise<{ lat: number; lng: number }> {
   });
 }
 
+interface ResolvedLocation {
+  lat: number;
+  lng: number;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+}
+
+async function reverseGeocodeCoords(pos: { lat: number; lng: number }): Promise<ResolvedLocation> {
+  try {
+    const res = await fetch("/api/geo/reverse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(pos),
+    });
+    if (!res.ok) return { ...pos, city: null, state: null, pincode: null };
+    const addr = await res.json();
+    return { ...pos, city: addr.city ?? null, state: addr.state ?? null, pincode: addr.pincode ?? null };
+  } catch {
+    return { ...pos, city: null, state: null, pincode: null };
+  }
+}
+
 export default function CheckoutPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -58,10 +81,13 @@ export default function CheckoutPage() {
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddr, setShowAddr] = useState(false);
-  const [form, setForm] = useState({ line1: "", line2: "", city: "", pincode: "", label: "Home" });
+  const [form, setForm] = useState({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "locating" | "done" | "error">("idle");
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [mapsLink, setMapsLink] = useState("");
+  const [linkStatus, setLinkStatus] = useState<"idle" | "resolving" | "error">("idle");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   // Pinning location on an already-saved address (previously impossible).
   const [pinningId, setPinningId] = useState<string | null>(null);
@@ -81,9 +107,47 @@ export default function CheckoutPage() {
       const pos = await getBrowserLocation();
       setGeo(pos);
       setGeoStatus("done");
+      const resolved = await reverseGeocodeCoords(pos);
+      setForm((f) => ({
+        ...f,
+        city: f.city || resolved.city || "",
+        state: f.state || resolved.state || "",
+        pincode: f.pincode || resolved.pincode || "",
+      }));
     } catch (err) {
       setGeoStatus("error");
       setGeoError((err as Error).message);
+    }
+  }
+
+  async function useMapsLinkForNewAddress() {
+    setLinkStatus("resolving");
+    setLinkError(null);
+    try {
+      const res = await fetch("/api/geo/resolve-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: mapsLink.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setLinkStatus("error");
+        setLinkError(json.error ?? "Couldn't resolve that link.");
+        return;
+      }
+      setGeo({ lat: json.lat, lng: json.lng });
+      setGeoStatus("done");
+      setForm((f) => ({
+        ...f,
+        city: f.city || json.city || "",
+        state: f.state || json.state || "",
+        pincode: f.pincode || json.pincode || "",
+      }));
+      setLinkStatus("idle");
+      setMapsLink("");
+    } catch {
+      setLinkStatus("error");
+      setLinkError("Couldn't resolve that link — check your connection and try again.");
     }
   }
 
@@ -91,12 +155,17 @@ export default function CheckoutPage() {
     setPinningId(addr.id);
     try {
       const pos = await getBrowserLocation();
-      const { error } = await supabase
-        .from("addresses")
-        .update({ lat: pos.lat, lng: pos.lng })
-        .eq("id", addr.id);
+      const resolved = await reverseGeocodeCoords(pos);
+      const update = {
+        lat: pos.lat,
+        lng: pos.lng,
+        city: addr.city || resolved.city || addr.city,
+        state: addr.state || resolved.state || addr.state,
+        pincode: addr.pincode || resolved.pincode || addr.pincode,
+      };
+      const { error } = await supabase.from("addresses").update(update).eq("id", addr.id);
       if (error) throw error;
-      setAddresses((prev) => prev.map((a) => (a.id === addr.id ? { ...a, ...pos } : a)));
+      setAddresses((prev) => prev.map((a) => (a.id === addr.id ? { ...a, ...update } : a)));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -179,6 +248,7 @@ export default function CheckoutPage() {
     setGeo(null);
     setGeoStatus("idle");
     setGeoError(null);
+    setForm({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
   }
 
   async function placeOrder() {
@@ -288,7 +358,7 @@ export default function CheckoutPage() {
                 />
                 <span className="flex-1">
                   <b>{a.label}</b> — {a.line1}, {a.line2 && `${a.line2}, `}
-                  {a.city} {a.pincode}
+                  {a.city}{a.state && `, ${a.state}`} {a.pincode}
                   {a.lat == null && (
                     <button
                       type="button"
@@ -317,7 +387,9 @@ export default function CheckoutPage() {
               value={form.line2} onChange={(e) => setForm({ ...form, line2: e.target.value })} />
             <input className="input" placeholder="City"
               value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-            <input className="input" placeholder="Pincode" required
+            <input className="input" placeholder="State"
+              value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+            <input className="input col-span-2" placeholder="Pincode" required
               value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value })} />
 
             <div className="col-span-2 flex items-center gap-2">
@@ -342,8 +414,28 @@ export default function CheckoutPage() {
                 <span className="text-xs text-red-500">{geoError ?? "Couldn't get location — you can still save."}</span>
               )}
             </div>
+            <p className="col-span-2 -mt-1 text-center text-[11px] text-ink-faint">— or, if you're not there right now —</p>
+            <div className="col-span-2 flex gap-2">
+              <input
+                className="input flex-1 text-sm"
+                placeholder="Paste a Google Maps link"
+                value={mapsLink}
+                onChange={(e) => setMapsLink(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={useMapsLinkForNewAddress}
+                className="btn-outline shrink-0 px-3 text-sm"
+                disabled={!mapsLink.trim() || linkStatus === "resolving"}
+              >
+                <Link2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {linkStatus === "error" && linkError && (
+              <p className="col-span-2 -mt-1 text-[11px] text-red-500">{linkError}</p>
+            )}
             <p className="col-span-2 -mt-1 text-[11px] text-ink-faint">
-              Pinning your location helps the delivery partner reach your exact doorstep.
+              Pinning your location (or pasting a Maps link) helps the delivery partner reach your exact doorstep, and fills city/state/pincode automatically.
             </p>
 
             <button className="btn-primary col-span-2">Save address</button>

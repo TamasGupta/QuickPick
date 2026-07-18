@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Store, MapPin } from "lucide-react";
+import { Store, MapPin, Link2 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 
 export function CreateSellerForm() {
@@ -12,36 +12,94 @@ export function CreateSellerForm() {
     full_name: "",
     store_name: "",
     city: "",
+    state: "",
     pincode: "",
-    lat: "",
-    lng: "",
   });
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "locating" | "done" | "error">("idle");
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [mapsLink, setMapsLink] = useState("");
+  const [linkStatus, setLinkStatus] = useState<"idle" | "resolving" | "error">("idle");
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Fills city/state/pincode from resolved coordinates, but only into fields
+  // the admin hasn't already typed something into.
+  function applyLocation(loc: { lat: number; lng: number; city?: string | null; state?: string | null; pincode?: string | null }) {
+    setCoords({ lat: loc.lat, lng: loc.lng });
+    setForm((f) => ({
+      ...f,
+      city: f.city || loc.city || "",
+      state: f.state || loc.state || "",
+      pincode: f.pincode || loc.pincode || "",
+    }));
+  }
+
   function detectLocation() {
     if (!navigator.geolocation) {
       setGeoStatus("error");
+      setGeoError("Geolocation isn't supported in this browser.");
       return;
     }
     setGeoStatus("locating");
+    setGeoError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setForm((f) => ({
-          ...f,
-          lat: pos.coords.latitude.toFixed(6),
-          lng: pos.coords.longitude.toFixed(6),
-        }));
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCoords({ lat, lng });
         setGeoStatus("done");
+        try {
+          const res = await fetch("/api/geo/reverse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lng }),
+          });
+          if (res.ok) applyLocation({ lat, lng, ...(await res.json()) });
+        } catch {
+          // Coordinates are still captured — city/state/pincode just stay
+          // whatever the admin already typed (or blank, editable manually).
+        }
       },
       (err) => {
         console.error("Seller location detection failed:", err.code, err.message);
+        const messages: Record<number, string> = {
+          1: "Location permission was denied. Enable it in your browser/site settings.",
+          2: "Couldn't determine a location right now.",
+          3: "Location request timed out — try again.",
+        };
         setGeoStatus("error");
+        setGeoError(messages[err.code] ?? err.message);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  }
+
+  async function useMapsLink() {
+    setLinkStatus("resolving");
+    setLinkError(null);
+    try {
+      const res = await fetch("/api/geo/resolve-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: mapsLink.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setLinkStatus("error");
+        setLinkError(json.error ?? "Couldn't resolve that link.");
+        return;
+      }
+      applyLocation(json);
+      setGeoStatus("done");
+      setLinkStatus("idle");
+      setMapsLink("");
+    } catch {
+      setLinkStatus("error");
+      setLinkError("Couldn't resolve that link — check your connection and try again.");
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -52,11 +110,7 @@ export function CreateSellerForm() {
     const res = await fetch("/api/admin/sellers/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        lat: form.lat ? Number(form.lat) : null,
-        lng: form.lng ? Number(form.lng) : null,
-      }),
+      body: JSON.stringify({ ...form, lat: coords?.lat ?? null, lng: coords?.lng ?? null }),
     });
     const json = await res.json();
     setLoading(false);
@@ -65,8 +119,10 @@ export function CreateSellerForm() {
       return;
     }
     setSuccess(`Seller created — ${json.phone} can now log in and land on their dashboard.`);
-    setForm({ phone: "", full_name: "", store_name: "", city: "", pincode: "", lat: "", lng: "" });
+    setForm({ phone: "", full_name: "", store_name: "", city: "", state: "", pincode: "" });
+    setCoords(null);
     setGeoStatus("idle");
+    setMapsLink("");
     router.refresh();
   }
 
@@ -97,12 +153,18 @@ export function CreateSellerForm() {
         value={form.store_name}
         onChange={(e) => setForm({ ...form, store_name: e.target.value })}
       />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <input
           className="input"
           placeholder="City"
           value={form.city}
           onChange={(e) => setForm({ ...form, city: e.target.value })}
+        />
+        <input
+          className="input"
+          placeholder="State"
+          value={form.state}
+          onChange={(e) => setForm({ ...form, state: e.target.value })}
         />
         <input
           className="input"
@@ -112,26 +174,11 @@ export function CreateSellerForm() {
         />
       </div>
 
-      <div className="space-y-1.5 rounded-xl border border-gray-100 p-2.5">
+      <div className="space-y-2 rounded-xl border border-gray-100 p-2.5">
         <p className="text-xs font-semibold text-ink-soft">
-          Store location <span className="text-ink-faint">(needed for the 10km delivery radius)</span>
+          Store location <span className="text-ink-faint">(needed for the 10km delivery radius — also fills city/state/pincode above)</span>
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            className="input"
-            placeholder="Latitude"
-            inputMode="decimal"
-            value={form.lat}
-            onChange={(e) => setForm({ ...form, lat: e.target.value })}
-          />
-          <input
-            className="input"
-            placeholder="Longitude"
-            inputMode="decimal"
-            value={form.lng}
-            onChange={(e) => setForm({ ...form, lng: e.target.value })}
-          />
-        </div>
+
         <button
           type="button"
           onClick={detectLocation}
@@ -140,15 +187,41 @@ export function CreateSellerForm() {
           <MapPin className="h-3.5 w-3.5" />
           {geoStatus === "locating"
             ? "Locating…"
-            : geoStatus === "done"
+            : geoStatus === "done" && coords
               ? "Location pinned"
-              : "Use my current location (if at the store)"}
+              : "Use current location (if at the store)"}
         </button>
-        {geoStatus === "error" && (
-          <p className="text-[11px] text-red-500">
-            Couldn't get your location — enter latitude/longitude manually (e.g. from Google Maps).
-          </p>
+        {geoStatus === "done" && coords && (
+          <p className="text-[11px] text-brand-700">📍 Pinned at {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</p>
         )}
+        {geoStatus === "error" && geoError && <p className="text-[11px] text-red-500">{geoError}</p>}
+
+        <p className="text-center text-[11px] text-ink-faint">— or, if you're not at the store —</p>
+
+        <div className="flex gap-2">
+          <input
+            className="input flex-1 text-sm"
+            placeholder="Paste a Google Maps link to the store"
+            value={mapsLink}
+            onChange={(e) => setMapsLink(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={useMapsLink}
+            className="btn-outline shrink-0 px-3 text-sm"
+            disabled={!mapsLink.trim() || linkStatus === "resolving"}
+          >
+            {linkStatus === "resolving" ? (
+              <Spinner className="h-3.5 w-3.5 border-ink/30 border-t-ink" />
+            ) : (
+              <Link2 className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
+        {linkStatus === "error" && linkError && <p className="text-[11px] text-red-500">{linkError}</p>}
+        <p className="text-[11px] text-ink-faint">
+          In Google Maps: search the store, drop a pin, tap Share → Copy link. Shortened links work too.
+        </p>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
