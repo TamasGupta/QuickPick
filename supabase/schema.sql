@@ -75,6 +75,10 @@ create table if not exists sellers (
   address_line text,
   city text,
   pincode text,
+  -- Nullable: orders from sellers without a pinned location aren't blocked
+  -- by the 10km delivery-radius check (see /api/orders and lib/geo.ts).
+  lat double precision,
+  lng double precision,
   created_at timestamptz not null default now(),
   unique(owner_id)
 );

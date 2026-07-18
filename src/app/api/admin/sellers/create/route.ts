@@ -23,6 +23,8 @@ export const POST = withApiLogging("/api/admin/sellers/create", async (req: Requ
     city?: string;
     pincode?: string;
     address_line?: string;
+    lat?: number | null;
+    lng?: number | null;
   };
   if (!body.phone || !body.store_name) {
     return NextResponse.json({ error: "phone and store_name are required" }, { status: 400 });
@@ -72,6 +74,8 @@ export const POST = withApiLogging("/api/admin/sellers/create", async (req: Requ
         pincode: body.pincode || null,
         address_line: body.address_line || null,
         phone: phone.replace("+", ""),
+        lat: typeof body.lat === "number" ? body.lat : null,
+        lng: typeof body.lng === "number" ? body.lng : null,
       },
       { onConflict: "owner_id" }
     )

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { DELIVERY_FEE } from "@/lib/utils";
 import { withApiLogging } from "@/lib/apiLogger";
+import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 
 interface IncomingItem {
   product_id: string;
@@ -33,6 +34,29 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   }
 
   const service = createServiceSupabase();
+
+  // Enforce the delivery radius. Never trust a client-computed distance —
+  // re-fetch both points and recompute server-side. If either the seller or
+  // the buyer's address has no pinned location, we can't verify distance, so
+  // the order is allowed through rather than blocking on missing data.
+  const [{ data: seller }, { data: address }] = await Promise.all([
+    service.from("sellers").select("lat, lng").eq("id", seller_id).single(),
+    service.from("addresses").select("lat, lng").eq("id", address_id).eq("user_id", user.id).single(),
+  ]);
+  if (seller?.lat != null && seller?.lng != null && address?.lat != null && address?.lng != null) {
+    const distanceKm = haversineKm(
+      { lat: seller.lat, lng: seller.lng },
+      { lat: address.lat, lng: address.lng }
+    );
+    if (distanceKm > MAX_DELIVERY_RADIUS_KM) {
+      return NextResponse.json(
+        {
+          error: `This store is ${distanceKm.toFixed(1)} km away — we currently only deliver within ${MAX_DELIVERY_RADIUS_KM} km.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
 
   // Re-price against the DB to prevent tampering.
   const ids = items.map((i) => i.product_id);
