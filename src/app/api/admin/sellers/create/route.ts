@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireAdmin, toE164 } from "@/lib/admin";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // POST /api/admin/sellers/create — super admin onboards a new seller.
 // Creates (or reuses) the phone-auth account, sets role='seller', and
 // creates an approved store — sellers no longer self-register.
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/admin/sellers/create", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -79,4 +80,4 @@ export async function POST(req: Request) {
   if (sellerErr) return NextResponse.json({ error: sellerErr.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, seller_id: seller.id, phone });
-}
+});

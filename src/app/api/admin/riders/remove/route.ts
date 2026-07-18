@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // POST /api/admin/riders/remove — revoke a delivery partner's access
 // (reverts their profile back to a plain buyer).
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/admin/riders/remove", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -22,4 +23,4 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
-}
+});

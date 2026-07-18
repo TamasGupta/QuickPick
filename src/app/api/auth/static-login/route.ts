@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { toE164 } from "@/lib/phone";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // POST /api/auth/static-login — TEMPORARY stand-in for real SMS OTP delivery.
 //
@@ -12,7 +13,7 @@ import { toE164 } from "@/lib/phone";
 // ANY phone number — including existing seller/rider/admin accounts. Only
 // keep STATIC_OTP_ENABLED=true while actively testing, and turn it off (unset
 // the env var, redeploy) the moment real SMS delivery works.
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/auth/static-login", async (req: Request) => {
   if (process.env.NEXT_PUBLIC_STATIC_OTP_ENABLED !== "true") {
     return NextResponse.json({ error: "Static OTP login is disabled" }, { status: 404 });
   }
@@ -73,4 +74,4 @@ export async function POST(req: Request) {
   if (signInErr) return NextResponse.json({ error: signInErr.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
-}
+});

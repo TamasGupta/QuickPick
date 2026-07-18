@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/admin";
 import { fetchProductImage, isImageReachable, mapWithConcurrency } from "@/lib/productImage";
+import { withApiLogging } from "@/lib/apiLogger";
 
 export const maxDuration = 60;
 
@@ -13,7 +14,7 @@ export const maxDuration = 60;
 const BATCH_LIMIT = 60;
 const CONCURRENCY = 3;
 
-export async function POST() {
+export const POST = withApiLogging("/api/admin/products/refresh-images", async (_req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -66,4 +67,4 @@ export async function POST() {
   });
 
   return NextResponse.json({ checked, fixed, cleared, remaining: list.length === BATCH_LIMIT });
-}
+});

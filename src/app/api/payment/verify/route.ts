@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { verifyPaymentSignature } from "@/lib/razorpay";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // POST /api/payment/verify — verify Razorpay signature, mark order paid,
 // and atomically decrement stock. Server-side signature check is the
 // security boundary; never trust the client's "success".
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/payment/verify", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -58,4 +59,4 @@ export async function POST(req: Request) {
     .eq("id", order.id);
 
   return NextResponse.json({ ok: true });
-}
+});

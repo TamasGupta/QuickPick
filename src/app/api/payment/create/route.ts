@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { getRazorpay } from "@/lib/razorpay";
+import { withApiLogging } from "@/lib/apiLogger";
 
 // POST /api/payment/create — create a Razorpay order for an existing DB order.
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/payment/create", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -46,4 +47,4 @@ export async function POST(req: Request) {
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
-}
+});

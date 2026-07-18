@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { DELIVERY_FEE } from "@/lib/utils";
+import { withApiLogging } from "@/lib/apiLogger";
 
 interface IncomingItem {
   product_id: string;
@@ -11,7 +12,7 @@ interface IncomingItem {
 
 // POST /api/orders — create an order for the logged-in buyer.
 // Prices are re-fetched server-side (never trust client prices).
-export async function POST(req: Request) {
+export const POST = withApiLogging("/api/orders", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
     data: { user },
@@ -95,4 +96,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ id: order.id, total });
-}
+});
