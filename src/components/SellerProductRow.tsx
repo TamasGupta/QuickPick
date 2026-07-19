@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { inr } from "@/lib/utils";
+import { notify } from "@/store/notify";
 import type { Product } from "@/lib/types";
 
 export function SellerProductRow({ product }: { product: Product }) {
@@ -15,18 +16,27 @@ export function SellerProductRow({ product }: { product: Product }) {
 
   async function save() {
     setSaving(true);
-    await supabase
+    const { error } = await supabase
       .from("products")
       .update({ price, stock, is_active: active })
       .eq("id", product.id);
     setSaving(false);
+    if (error) {
+      notify.error(error.message);
+      return;
+    }
+    notify.success("Product updated");
     setDirty(false);
   }
 
   async function toggle() {
     const next = !active;
     setActive(next);
-    await supabase.from("products").update({ is_active: next }).eq("id", product.id);
+    const { error } = await supabase.from("products").update({ is_active: next }).eq("id", product.id);
+    if (error) {
+      setActive(!next);
+      notify.error(error.message);
+    }
   }
 
   return (

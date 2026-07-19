@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Spinner } from "@/components/Loader";
+import { notify } from "@/store/notify";
 
 export function AdminRiderRow({ rider }: { rider: { id: string; full_name: string | null; phone: string | null } }) {
   const router = useRouter();
@@ -17,7 +18,12 @@ export function AdminRiderRow({ rider }: { rider: { id: string; full_name: strin
       body: JSON.stringify({ rider_id: rider.id }),
     });
     setBusy(false);
-    if (res.ok) router.refresh();
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      notify.error(json.error ?? "Couldn't remove delivery partner");
+      return;
+    }
+    router.refresh();
   }
 
   return (

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Spinner } from "@/components/Loader";
+import { notify } from "@/store/notify";
 import type { SellerStatus } from "@/lib/types";
 
 export function AdminSellerRow({
@@ -17,7 +18,11 @@ export function AdminSellerRow({
   async function set(next: SellerStatus) {
     setBusy(true);
     const { error } = await supabase.from("sellers").update({ status: next }).eq("id", seller.id);
-    if (!error) setStatus(next);
+    if (error) {
+      notify.error(error.message);
+    } else {
+      setStatus(next);
+    }
     setBusy(false);
   }
 

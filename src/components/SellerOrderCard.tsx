@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { inr, ORDER_STATUS_LABELS, formatIST } from "@/lib/utils";
+import { notify } from "@/store/notify";
 import type { OrderStatus } from "@/lib/types";
 
 // Seller drives the order up to "packed"; a delivery partner then picks it up
@@ -45,7 +46,12 @@ export function SellerOrderCard({ order, items }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: to }),
     });
-    if (res.ok) setStatus(to);
+    if (res.ok) {
+      setStatus(to);
+    } else {
+      const json = await res.json().catch(() => ({}));
+      notify.error(json.error ?? "Couldn't update order status");
+    }
     setBusy(false);
   }
 

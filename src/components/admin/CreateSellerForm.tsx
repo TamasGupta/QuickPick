@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Store, MapPin, Link2 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
+import { notify } from "@/store/notify";
 
 export function CreateSellerForm() {
   const router = useRouter();
@@ -17,13 +18,9 @@ export function CreateSellerForm() {
   });
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "locating" | "done" | "error">("idle");
-  const [geoError, setGeoError] = useState<string | null>(null);
   const [mapsLink, setMapsLink] = useState("");
   const [linkStatus, setLinkStatus] = useState<"idle" | "resolving" | "error">("idle");
-  const [linkError, setLinkError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Fills city/state/pincode from resolved coordinates, but only into fields
   // the admin hasn't already typed something into.
@@ -40,11 +37,10 @@ export function CreateSellerForm() {
   function detectLocation() {
     if (!navigator.geolocation) {
       setGeoStatus("error");
-      setGeoError("Geolocation isn't supported in this browser.");
+      notify.error("Geolocation isn't supported in this browser.");
       return;
     }
     setGeoStatus("locating");
-    setGeoError(null);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude;
@@ -71,7 +67,7 @@ export function CreateSellerForm() {
           3: "Location request timed out — try again.",
         };
         setGeoStatus("error");
-        setGeoError(messages[err.code] ?? err.message);
+        notify.error(messages[err.code] ?? err.message);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -79,7 +75,6 @@ export function CreateSellerForm() {
 
   async function useMapsLink() {
     setLinkStatus("resolving");
-    setLinkError(null);
     try {
       const res = await fetch("/api/geo/resolve-link", {
         method: "POST",
@@ -89,7 +84,7 @@ export function CreateSellerForm() {
       const json = await res.json();
       if (!res.ok) {
         setLinkStatus("error");
-        setLinkError(json.error ?? "Couldn't resolve that link.");
+        notify.error(json.error ?? "Couldn't resolve that link.");
         return;
       }
       applyLocation(json);
@@ -98,15 +93,13 @@ export function CreateSellerForm() {
       setMapsLink("");
     } catch {
       setLinkStatus("error");
-      setLinkError("Couldn't resolve that link — check your connection and try again.");
+      notify.error("Couldn't resolve that link — check your connection and try again.");
     }
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     const res = await fetch("/api/admin/sellers/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -115,10 +108,10 @@ export function CreateSellerForm() {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? "Something went wrong");
+      notify.error(json.error ?? "Something went wrong");
       return;
     }
-    setSuccess(`Seller created — ${json.phone} can now log in and land on their dashboard.`);
+    notify.success(`Seller created — ${json.phone} can now log in and land on their dashboard.`);
     setForm({ phone: "", full_name: "", store_name: "", city: "", state: "", pincode: "" });
     setCoords(null);
     setGeoStatus("idle");
@@ -194,7 +187,6 @@ export function CreateSellerForm() {
         {geoStatus === "done" && coords && (
           <p className="text-[11px] text-brand-700">📍 Pinned at {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</p>
         )}
-        {geoStatus === "error" && geoError && <p className="text-[11px] text-red-500">{geoError}</p>}
 
         <p className="text-center text-[11px] text-ink-faint">— or, if you're not at the store —</p>
 
@@ -218,14 +210,11 @@ export function CreateSellerForm() {
             )}
           </button>
         </div>
-        {linkStatus === "error" && linkError && <p className="text-[11px] text-red-500">{linkError}</p>}
         <p className="text-[11px] text-ink-faint">
           In Google Maps: search the store, drop a pin, tap Share → Copy link. Shortened links work too.
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {success && <p className="text-sm text-brand-700">{success}</p>}
       <button className="btn-primary w-full" disabled={loading}>
         {loading ? <Spinner /> : "Create seller"}
       </button>

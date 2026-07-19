@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Zap, MapPin, Search, ShoppingCart, ChevronDown, User } from "lucide-react";
 import { useCart } from "@/store/cart";
@@ -11,7 +11,10 @@ import type { Address } from "@/lib/types";
 export function Header() {
   const rawCount = useCart((s) => s.count());
   const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
+  // Seller/admin/rider consoles don't shop — same route check BottomNav uses.
+  const inConsole = pathname.startsWith("/seller") || pathname.startsWith("/admin") || pathname.startsWith("/rider");
   const [phone, setPhone] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -110,18 +113,20 @@ export function Header() {
               Login
             </Link>
           )}
-          <Link
-            href="/cart"
-            className="relative inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
-          >
-            <ShoppingCart className="h-5 w-5" />
-            <span className="hidden sm:inline">{count > 0 ? `${count} item${count > 1 ? "s" : ""}` : "Cart"}</span>
-            {count > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-400 px-1 text-[11px] font-extrabold text-ink sm:hidden">
-                {count}
-              </span>
-            )}
-          </Link>
+          {!inConsole && (
+            <Link
+              href="/cart"
+              className="relative inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              <span className="hidden sm:inline">{count > 0 ? `${count} item${count > 1 ? "s" : ""}` : "Cart"}</span>
+              {count > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-400 px-1 text-[11px] font-extrabold text-ink sm:hidden">
+                  {count}
+                </span>
+              )}
+            </Link>
+          )}
         </nav>
       </div>
 
