@@ -23,6 +23,13 @@ export interface RiderOrder {
   created_at: string;
   rider_id: string | null;
   store_name: string;
+  store: {
+    address_line: string | null;
+    city: string | null;
+    pincode: string | null;
+    lat: number | null;
+    lng: number | null;
+  } | null;
   buyer_name: string;
   buyer_phone: string | null;
   address: {
@@ -56,7 +63,7 @@ export async function enrichOrders(
         ? service.from("addresses").select("*").in("id", addressIds)
         : Promise.resolve({ data: [] as Record<string, unknown>[] }),
       service.from("order_items").select("order_id, name, qty").in("order_id", orderIds),
-      service.from("sellers").select("id, store_name").in("id", sellerIds),
+      service.from("sellers").select("id, store_name, address_line, city, pincode, lat, lng").in("id", sellerIds),
     ]);
 
   const buyerMap = new Map((buyers ?? []).map((b) => [b.id, b]));
@@ -72,6 +79,7 @@ export async function enrichOrders(
   return orders.map((o) => {
     const buyer = buyerMap.get(o.buyer_id as string);
     const a = o.address_id ? (addrMap.get(o.address_id as string) as Record<string, unknown>) : null;
+    const seller = sellerMap.get(o.seller_id as string) as Record<string, unknown> | undefined;
     return {
       id: o.id as string,
       status: o.status as string,
@@ -82,7 +90,16 @@ export async function enrichOrders(
       delivery_slot: (o.delivery_slot as string) ?? null,
       created_at: o.created_at as string,
       rider_id: (o.rider_id as string) ?? null,
-      store_name: sellerMap.get(o.seller_id as string)?.store_name ?? "Store",
+      store_name: (seller?.store_name as string) ?? "Store",
+      store: seller
+        ? {
+            address_line: (seller.address_line as string) ?? null,
+            city: (seller.city as string) ?? null,
+            pincode: (seller.pincode as string) ?? null,
+            lat: (seller.lat as number) ?? null,
+            lng: (seller.lng as number) ?? null,
+          }
+        : null,
       buyer_name: buyer?.full_name ?? "Customer",
       buyer_phone: buyer?.phone ?? null,
       address: a

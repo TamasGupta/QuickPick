@@ -55,6 +55,38 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Omit<Res
   }
 }
 
+export interface AddressSearchResult {
+  lat: number;
+  lng: number;
+  label: string;
+}
+
+// Forward geocode: free-text address -> candidate points, for the map
+// picker's search box (so a buyer can type "MG Road Bengaluru" and jump
+// there instead of only dragging the pin from wherever GPS lands them).
+// `countrycodes=in` scopes results to India, matching the app's market.
+export async function searchAddress(query: string): Promise<AddressSearchResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const params = new URLSearchParams({
+      format: "jsonv2",
+      q,
+      countrycodes: "in",
+      limit: "5",
+    });
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      headers: { "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { lat: string; lon: string; display_name: string }[];
+    return data.map((d) => ({ lat: Number(d.lat), lng: Number(d.lon), label: d.display_name }));
+  } catch {
+    return [];
+  }
+}
+
 // Only ever follow/fetch Google's own domains — this endpoint takes a
 // user-supplied URL, so without an allowlist it'd be an open SSRF proxy.
 const ALLOWED_HOSTS = ["google.com", "goo.gl", "app.goo.gl"];
