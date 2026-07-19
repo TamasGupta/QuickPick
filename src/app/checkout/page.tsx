@@ -2,68 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { MapPin, TriangleAlert, Link2 } from "lucide-react";
+import { MapPin, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE } from "@/lib/utils";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { SkelLine } from "@/components/skeletons";
 import type { Address } from "@/lib/types";
+import type { PickedLocation } from "@/components/LocationPicker";
+
+// Leaflet touches `window` at import time, so the map can only ever render
+// client-side — ssr:false keeps Next.js from trying to render it on the server.
+const LocationPicker = dynamic(() => import("@/components/LocationPicker").then((m) => m.LocationPicker), {
+  ssr: false,
+  loading: () => <div className="flex h-64 items-center justify-center rounded-xl bg-gray-50 text-sm text-ink-faint">Loading map…</div>,
+});
 
 const SLOTS = ["Now (10–20 min)", "Within 1 hour", "This evening", "Tomorrow morning"];
 
 declare global {
   interface Window {
     Razorpay?: any;
-  }
-}
-
-// Wraps navigator.geolocation with consistent, logged error handling so a
-// failure is actually diagnosable (previously errors were swallowed with no
-// detail anywhere — the #1 reported cause of "location isn't working").
-function getBrowserLocation(): Promise<{ lat: number; lng: number }> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation isn't supported in this browser."));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => {
-        console.error("Geolocation failed:", err.code, err.message);
-        const messages: Record<number, string> = {
-          1: "Location permission was denied. Enable it in your browser/site settings.",
-          2: "Your device couldn't determine a location right now.",
-          3: "Location request timed out — try again.",
-        };
-        reject(new Error(messages[err.code] ?? err.message));
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
-}
-
-interface ResolvedLocation {
-  lat: number;
-  lng: number;
-  city: string | null;
-  state: string | null;
-  pincode: string | null;
-}
-
-async function reverseGeocodeCoords(pos: { lat: number; lng: number }): Promise<ResolvedLocation> {
-  try {
-    const res = await fetch("/api/geo/reverse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pos),
-    });
-    if (!res.ok) return { ...pos, city: null, state: null, pincode: null };
-    const addr = await res.json();
-    return { ...pos, city: addr.city ?? null, state: addr.state ?? null, pincode: addr.pincode ?? null };
-  } catch {
-    return { ...pos, city: null, state: null, pincode: null };
   }
 }
 
@@ -82,15 +43,12 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAddr, setShowAddr] = useState(false);
   const [form, setForm] = useState({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
-  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
-  const [geoStatus, setGeoStatus] = useState<"idle" | "locating" | "done" | "error">("idle");
-  const [geoError, setGeoError] = useState<string | null>(null);
-  const [mapsLink, setMapsLink] = useState("");
-  const [linkStatus, setLinkStatus] = useState<"idle" | "resolving" | "error">("idle");
-  const [linkError, setLinkError] = useState<string | null>(null);
+  const [picked, setPicked] = useState<PickedLocation | null>(null);
 
-  // Pinning location on an already-saved address (previously impossible).
-  const [pinningId, setPinningId] = useState<string | null>(null);
+  // Which address's inline map is open — "new" for the add-address form, an
+  // address id for pinning/repinning an already-saved one, or null (closed).
+  const [mapFor, setMapFor] = useState<string | null>(null);
+  const [pinning, setPinning] = useState(false);
 
   // Client-side heads-up for the 10km delivery radius — the authoritative
   // check runs server-side in /api/orders regardless.
@@ -100,76 +58,35 @@ export default function CheckoutPage() {
   const sub = subtotal();
   const total = sub + DELIVERY_FEE;
 
-  async function detectLocation() {
-    setGeoStatus("locating");
-    setGeoError(null);
-    try {
-      const pos = await getBrowserLocation();
-      setGeo(pos);
-      setGeoStatus("done");
-      const resolved = await reverseGeocodeCoords(pos);
-      setForm((f) => ({
-        ...f,
-        city: f.city || resolved.city || "",
-        state: f.state || resolved.state || "",
-        pincode: f.pincode || resolved.pincode || "",
-      }));
-    } catch (err) {
-      setGeoStatus("error");
-      setGeoError((err as Error).message);
-    }
+  function applyPickedToForm(loc: PickedLocation) {
+    setPicked(loc);
+    setForm((f) => ({
+      ...f,
+      city: f.city || loc.city || "",
+      state: f.state || loc.state || "",
+      pincode: f.pincode || loc.pincode || "",
+    }));
+    setMapFor(null);
   }
 
-  async function useMapsLinkForNewAddress() {
-    setLinkStatus("resolving");
-    setLinkError(null);
+  async function confirmPinForExisting(addr: Address, loc: PickedLocation) {
+    setPinning(true);
     try {
-      const res = await fetch("/api/geo/resolve-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: mapsLink.trim() }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setLinkStatus("error");
-        setLinkError(json.error ?? "Couldn't resolve that link.");
-        return;
-      }
-      setGeo({ lat: json.lat, lng: json.lng });
-      setGeoStatus("done");
-      setForm((f) => ({
-        ...f,
-        city: f.city || json.city || "",
-        state: f.state || json.state || "",
-        pincode: f.pincode || json.pincode || "",
-      }));
-      setLinkStatus("idle");
-      setMapsLink("");
-    } catch {
-      setLinkStatus("error");
-      setLinkError("Couldn't resolve that link — check your connection and try again.");
-    }
-  }
-
-  async function pinExistingAddress(addr: Address) {
-    setPinningId(addr.id);
-    try {
-      const pos = await getBrowserLocation();
-      const resolved = await reverseGeocodeCoords(pos);
       const update = {
-        lat: pos.lat,
-        lng: pos.lng,
-        city: addr.city || resolved.city || addr.city,
-        state: addr.state || resolved.state || addr.state,
-        pincode: addr.pincode || resolved.pincode || addr.pincode,
+        lat: loc.lat,
+        lng: loc.lng,
+        city: addr.city || loc.city || addr.city,
+        state: addr.state || loc.state || addr.state,
+        pincode: addr.pincode || loc.pincode || addr.pincode,
       };
       const { error } = await supabase.from("addresses").update(update).eq("id", addr.id);
       if (error) throw error;
       setAddresses((prev) => prev.map((a) => (a.id === addr.id ? { ...a, ...update } : a)));
+      setMapFor(null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setPinningId(null);
+      setPinning(false);
     }
   }
 
@@ -235,8 +152,8 @@ export default function CheckoutPage() {
         ...form,
         user_id: userId,
         is_default: addresses.length === 0,
-        lat: geo?.lat ?? null,
-        lng: geo?.lng ?? null,
+        lat: picked?.lat ?? null,
+        lng: picked?.lng ?? null,
       })
       .select()
       .single();
@@ -245,9 +162,8 @@ export default function CheckoutPage() {
     setAddresses((p) => [...p, a]);
     setAddressId(a.id);
     setShowAddr(false);
-    setGeo(null);
-    setGeoStatus("idle");
-    setGeoError(null);
+    setPicked(null);
+    setMapFor(null);
     setForm({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
   }
 
@@ -348,33 +264,40 @@ export default function CheckoutPage() {
         {!loadingAddr && addresses.length > 0 && !showAddr && (
           <div className="mt-3 space-y-2">
             {addresses.map((a) => (
-              <label key={a.id} className="flex cursor-pointer items-start gap-2 rounded-lg border p-2 text-sm">
-                <input
-                  type="radio"
-                  name="addr"
-                  checked={addressId === a.id}
-                  onChange={() => setAddressId(a.id)}
-                  className="mt-1"
-                />
-                <span className="flex-1">
-                  <b>{a.label}</b> — {a.line1}, {a.line2 && `${a.line2}, `}
-                  {a.city}{a.state && `, ${a.state}`} {a.pincode}
-                  {a.lat == null && (
+              <div key={a.id} className="rounded-lg border p-2 text-sm">
+                <label className="flex cursor-pointer items-start gap-2">
+                  <input
+                    type="radio"
+                    name="addr"
+                    checked={addressId === a.id}
+                    onChange={() => setAddressId(a.id)}
+                    className="mt-1"
+                  />
+                  <span className="flex-1">
+                    <b>{a.label}</b> — {a.line1}, {a.line2 && `${a.line2}, `}
+                    {a.city}{a.state && `, ${a.state}`} {a.pincode}
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        pinExistingAddress(a);
-                      }}
-                      disabled={pinningId === a.id}
+                      onClick={() => setMapFor(mapFor === a.id ? null : a.id)}
                       className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline"
                     >
                       <MapPin className="h-3 w-3" />
-                      {pinningId === a.id ? "Locating…" : "Pin exact location"}
+                      {a.lat == null ? "Pin exact location" : "Adjust pin"}
                     </button>
-                  )}
-                </span>
-              </label>
+                  </span>
+                </label>
+                {mapFor === a.id && (
+                  <div className="mt-2">
+                    <LocationPicker
+                      initialLat={a.lat}
+                      initialLng={a.lng}
+                      onCancel={() => setMapFor(null)}
+                      onConfirm={(loc) => confirmPinForExisting(a, loc)}
+                    />
+                    {pinning && <p className="mt-1 text-xs text-ink-faint">Saving…</p>}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -392,50 +315,27 @@ export default function CheckoutPage() {
             <input className="input col-span-2" placeholder="Pincode" required
               value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value })} />
 
-            <div className="col-span-2 flex items-center gap-2">
+            {mapFor === "new" ? (
+              <div className="col-span-2">
+                <LocationPicker
+                  initialLat={picked?.lat}
+                  initialLng={picked?.lng}
+                  onCancel={() => setMapFor(null)}
+                  onConfirm={applyPickedToForm}
+                />
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={detectLocation}
-                className={`btn-outline ${geoStatus === "done" ? "border-brand-500 text-brand-700" : ""}`}
+                onClick={() => setMapFor("new")}
+                className={`btn-outline col-span-2 ${picked ? "border-brand-500 text-brand-700" : ""}`}
               >
                 <MapPin className="h-4 w-4" />
-                {geoStatus === "locating"
-                  ? "Locating…"
-                  : geoStatus === "done"
-                    ? "Location pinned"
-                    : "Use current location"}
+                {picked ? "Location pinned — tap to adjust" : "Pin exact location on map"}
               </button>
-              {geoStatus === "done" && geo && (
-                <span className="text-xs text-brand-700">
-                  📍 {geo.lat.toFixed(5)}, {geo.lng.toFixed(5)}
-                </span>
-              )}
-              {geoStatus === "error" && (
-                <span className="text-xs text-red-500">{geoError ?? "Couldn't get location — you can still save."}</span>
-              )}
-            </div>
-            <p className="col-span-2 -mt-1 text-center text-[11px] text-ink-faint">— or, if you're not there right now —</p>
-            <div className="col-span-2 flex gap-2">
-              <input
-                className="input flex-1 text-sm"
-                placeholder="Paste a Google Maps link"
-                value={mapsLink}
-                onChange={(e) => setMapsLink(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={useMapsLinkForNewAddress}
-                className="btn-outline shrink-0 px-3 text-sm"
-                disabled={!mapsLink.trim() || linkStatus === "resolving"}
-              >
-                <Link2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            {linkStatus === "error" && linkError && (
-              <p className="col-span-2 -mt-1 text-[11px] text-red-500">{linkError}</p>
             )}
             <p className="col-span-2 -mt-1 text-[11px] text-ink-faint">
-              Pinning your location (or pasting a Maps link) helps the delivery partner reach your exact doorstep, and fills city/state/pincode automatically.
+              Pinning your location helps the delivery partner reach your exact doorstep, and fills city/state/pincode automatically.
             </p>
 
             <button className="btn-primary col-span-2">Save address</button>

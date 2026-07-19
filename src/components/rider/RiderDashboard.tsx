@@ -17,13 +17,15 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "history", label: "Completed" },
 ];
 
-function mapsHref(a: RiderOrder["address"]) {
-  if (!a) return "#";
-  if (a.lat != null && a.lng != null) {
-    return `https://www.google.com/maps/search/?api=1&query=${a.lat},${a.lng}`;
+// Turn-by-turn directions (not just a dropped pin) from wherever the rider
+// currently is to the given destination — Google Maps auto-detects the
+// origin as the device's live location when none is specified.
+function directionsHref(dest: { lat: number | null; lng: number | null } | null, textParts: (string | null)[]) {
+  if (dest?.lat != null && dest?.lng != null) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}`;
   }
-  const q = [a.line1, a.line2, a.city, a.pincode].filter(Boolean).join(", ");
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  const q = textParts.filter(Boolean).join(", ");
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}`;
 }
 
 export function RiderDashboard({ name }: { name: string }) {
@@ -192,8 +194,32 @@ function RiderOrderCard({
         </span>
       </div>
 
-      {/* Delivery details (active tab) */}
-      {tab === "active" && o.address && (
+      {/* Pickup leg: before the rider has collected the order, route to the
+          store, not the buyer — they haven't got anything to deliver yet. */}
+      {tab === "active" && o.status === "packed" && o.store && (
+        <div className="space-y-2 rounded-xl border border-gray-100 p-3">
+          <div className="flex items-start gap-2">
+            <Store className="mt-0.5 h-4 w-4 shrink-0 text-accent-500" />
+            <div className="text-sm">
+              <p className="font-semibold text-ink">{o.store_name}</p>
+              <p className="text-ink-soft">
+                {[o.store.address_line, o.store.city, o.store.pincode].filter(Boolean).join(", ") || "Address not pinned"}
+              </p>
+            </div>
+          </div>
+          <a
+            href={directionsHref(o.store, [o.store.address_line, o.store.city, o.store.pincode])}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-outline w-full"
+          >
+            <Navigation className="h-4 w-4" /> Navigate to store
+          </a>
+        </div>
+      )}
+
+      {/* Delivery leg: after pickup, route to the buyer's address. */}
+      {tab === "active" && o.status === "out_for_delivery" && o.address && (
         <div className="space-y-2 rounded-xl border border-gray-100 p-3">
           <div className="flex items-start gap-2">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent-500" />
@@ -210,8 +236,13 @@ function RiderOrderCard({
             </div>
           </div>
           <div className="flex gap-2">
-            <a href={mapsHref(o.address)} target="_blank" rel="noreferrer" className="btn-outline flex-1">
-              <Navigation className="h-4 w-4" /> Navigate
+            <a
+              href={directionsHref(o.address, [o.address.line1, o.address.line2, o.address.city, o.address.pincode])}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-outline flex-1"
+            >
+              <Navigation className="h-4 w-4" /> Navigate to customer
             </a>
             {o.buyer_phone && (
               <a href={`tel:${o.buyer_phone}`} className="btn-outline flex-1">
