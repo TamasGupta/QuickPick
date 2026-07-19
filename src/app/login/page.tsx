@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Phone, ShieldCheck, ArrowLeft, User as UserIcon, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { notify } from "@/store/notify";
 
 const RESEND_SECONDS = 60;
 
@@ -24,7 +25,6 @@ function LoginForm() {
   const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const otpRef = useRef<HTMLInputElement>(null);
 
@@ -69,9 +69,8 @@ function LoginForm() {
 
   async function sendOtp(e?: React.FormEvent) {
     e?.preventDefault();
-    setError(null);
     if (!/^\d{10}$/.test(phone)) {
-      setError("Enter a valid 10-digit mobile number.");
+      notify.error("Enter a valid 10-digit mobile number.");
       return;
     }
     if (STATIC_MODE) {
@@ -83,7 +82,7 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithOtp({ phone: e164() });
     setLoading(false);
     if (error) {
-      setError(error.message);
+      notify.error(error.message);
       return;
     }
     setStep("otp");
@@ -92,9 +91,8 @@ function LoginForm() {
 
   async function verifyOtp(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     if (!/^\d{6}$/.test(otp)) {
-      setError("Enter the 6-digit code.");
+      notify.error("Enter the 6-digit code.");
       return;
     }
     setLoading(true);
@@ -108,7 +106,7 @@ function LoginForm() {
       const json = await res.json();
       if (!res.ok) {
         setLoading(false);
-        setError(json.error ?? "Login failed");
+        notify.error(json.error ?? "Login failed");
         return;
       }
       const {
@@ -116,7 +114,7 @@ function LoginForm() {
       } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
-        setError("Login failed — please try again.");
+        notify.error("Login failed — please try again.");
         return;
       }
       await afterVerified(user.id);
@@ -130,7 +128,7 @@ function LoginForm() {
     });
     if (error) {
       setLoading(false);
-      setError(error.message);
+      notify.error(error.message);
       return;
     }
     await afterVerified(data.user!.id);
@@ -138,9 +136,8 @@ function LoginForm() {
 
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     if (!name.trim()) {
-      setError("Please enter your name.");
+      notify.error("Please enter your name.");
       return;
     }
     setLoading(true);
@@ -192,7 +189,6 @@ function LoginForm() {
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 />
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
               <button className="btn-primary w-full py-3" disabled={loading}>
                 {loading ? "Sending…" : STATIC_MODE ? "Continue" : "Send OTP"}
               </button>
@@ -206,7 +202,6 @@ function LoginForm() {
               onClick={() => {
                 setStep("phone");
                 setOtp("");
-                setError(null);
               }}
               className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
             >
@@ -234,7 +229,6 @@ function LoginForm() {
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
               />
-              {error && <p className="text-sm text-red-600">{error}</p>}
               <button className="btn-primary w-full py-3" disabled={loading}>
                 {loading ? "Verifying…" : "Verify & continue"}
               </button>
@@ -269,7 +263,6 @@ function LoginForm() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
-              {error && <p className="text-sm text-red-600">{error}</p>}
               <button className="btn-primary w-full py-3" disabled={loading}>
                 {loading ? "Saving…" : "Continue"}
               </button>

@@ -10,6 +10,7 @@ import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE } from "@/lib/utils";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { SkelLine } from "@/components/skeletons";
+import { notify } from "@/store/notify";
 import type { Address } from "@/lib/types";
 import type { PickedLocation } from "@/components/LocationPicker";
 
@@ -40,7 +41,6 @@ export default function CheckoutPage() {
   const [slot, setSlot] = useState(SLOTS[0]);
   const [pay, setPay] = useState<"online" | "cod">("online");
   const [placing, setPlacing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showAddr, setShowAddr] = useState(false);
   const [form, setForm] = useState({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
   const [picked, setPicked] = useState<PickedLocation | null>(null);
@@ -84,7 +84,7 @@ export default function CheckoutPage() {
       setAddresses((prev) => prev.map((a) => (a.id === addr.id ? { ...a, ...update } : a)));
       setMapFor(null);
     } catch (err) {
-      setError((err as Error).message);
+      notify.error((err as Error).message);
     } finally {
       setPinning(false);
     }
@@ -157,7 +157,7 @@ export default function CheckoutPage() {
       })
       .select()
       .single();
-    if (error) return setError(error.message);
+    if (error) return notify.error(error.message);
     const a = data as Address;
     setAddresses((p) => [...p, a]);
     setAddressId(a.id);
@@ -168,9 +168,8 @@ export default function CheckoutPage() {
   }
 
   async function placeOrder() {
-    setError(null);
-    if (!addressId) return setError("Please select a delivery address.");
-    if (outOfRange) return setError("This store doesn't deliver to your address.");
+    if (!addressId) return notify.error("Please select a delivery address.");
+    if (outOfRange) return notify.error("This store doesn't deliver to your address.");
     setPlacing(true);
     try {
       // 1) Create the order server-side.
@@ -220,14 +219,14 @@ export default function CheckoutPage() {
             clear();
             router.push(`/orders/${order.id}?placed=1`);
           } else {
-            setError("Payment verification failed. Please contact support.");
+            notify.error("Payment verification failed. Please contact support.");
           }
         },
         theme: { color: "#12924f" },
       });
       rzp.open();
     } catch (err) {
-      setError((err as Error).message);
+      notify.error((err as Error).message);
     } finally {
       setPlacing(false);
     }
@@ -394,8 +393,6 @@ export default function CheckoutPage() {
           <span>Total</span><span>{inr(total)}</span>
         </div>
       </section>
-
-      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
 
       <button className="btn-primary w-full" disabled={placing || outOfRange} onClick={placeOrder}>
         {placing ? "Placing order…" : pay === "cod" ? `Place order · ${inr(total)}` : `Pay ${inr(total)}`}

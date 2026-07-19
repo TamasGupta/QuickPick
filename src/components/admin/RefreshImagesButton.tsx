@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw, ImageOff } from "lucide-react";
 import { Spinner } from "@/components/Loader";
+import { notify } from "@/store/notify";
 
 export function RefreshImagesButton() {
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,7 @@ export function RefreshImagesButton() {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setResult(json.error ?? "Something went wrong");
+      notify.error(json.error ?? "Something went wrong");
       return;
     }
     setResult(

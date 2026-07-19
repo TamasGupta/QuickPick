@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Phone, User as UserIcon, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SkelLine } from "@/components/skeletons";
+import { notify } from "@/store/notify";
 
 export default function AccountPage() {
   const supabase = createClient();
@@ -44,8 +45,13 @@ export default function AccountPage() {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", user.id);
-      setSavedName(name.trim());
+      const { error } = await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", user.id);
+      if (error) {
+        notify.error(error.message);
+      } else {
+        setSavedName(name.trim());
+        notify.success("Name updated");
+      }
     }
     setSaving(false);
   }

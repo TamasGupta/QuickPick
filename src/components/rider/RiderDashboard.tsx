@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { inr } from "@/lib/utils";
+import { notify } from "@/store/notify";
 import type { RiderOrder } from "@/lib/rider";
 
 type Tab = "available" | "active" | "history";
@@ -70,7 +71,7 @@ export function RiderDashboard({ name }: { name: string }) {
     const json = await res.json();
     setBusyId(null);
     if (!res.ok) {
-      alert(json.error ?? "Action failed");
+      notify.error(json.error ?? "Action failed");
       return false;
     }
     await Promise.all([load(tab), refreshAvailCount()]);

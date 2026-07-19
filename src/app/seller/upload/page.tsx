@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { SellerNav } from "@/components/SellerNav";
+import { notify } from "@/store/notify";
 import type { ParsedProductRow } from "@/lib/types";
 
 type ParseResult = {
@@ -18,14 +19,12 @@ export default function UploadPage() {
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [rows, setRows] = useState<ParsedProductRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [done, setDone] = useState<{ imported: number; skipped: number } | null>(null);
 
   async function handleParse() {
     if (!file) return;
     setParsing(true);
-    setError(null);
     setDone(null);
     try {
       const fd = new FormData();
@@ -36,7 +35,7 @@ export default function UploadPage() {
       setResult(data);
       setRows(data.rows);
     } catch (e) {
-      setError((e as Error).message);
+      notify.error((e as Error).message);
     } finally {
       setParsing(false);
     }
@@ -64,7 +63,6 @@ export default function UploadPage() {
   async function handleImport() {
     if (!result) return;
     setImporting(true);
-    setError(null);
     try {
       const res = await fetch("/api/upload/import", {
         method: "POST",
@@ -78,7 +76,7 @@ export default function UploadPage() {
       setRows([]);
       setFile(null);
     } catch (e) {
-      setError((e as Error).message);
+      notify.error((e as Error).message);
     } finally {
       setImporting(false);
     }
@@ -126,8 +124,6 @@ export default function UploadPage() {
           </button>
         </div>
       )}
-
-      {error && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
 
       {/* Preview + edit */}
       {result && (
