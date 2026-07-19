@@ -59,13 +59,23 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur-md">
       <div className="container-app flex h-16 items-center gap-3 sm:gap-6">
-        {/* Brand */}
-        <Link href="/" className="flex shrink-0 items-center gap-1.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
-            <Zap className="h-5 w-5 fill-white" />
+        {/* Brand — plain (non-navigating) inside seller/admin/rider consoles,
+            since clicking through to the buyer listing page there is unwanted. */}
+        {inConsole ? (
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
+              <Zap className="h-5 w-5 fill-white" />
+            </span>
+            <span className="text-xl font-extrabold tracking-tight text-ink">QuickPick</span>
           </span>
-          <span className="text-xl font-extrabold tracking-tight text-ink">QuickPick</span>
-        </Link>
+        ) : (
+          <Link href="/" className="flex shrink-0 items-center gap-1.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
+              <Zap className="h-5 w-5 fill-white" />
+            </span>
+            <span className="text-xl font-extrabold tracking-tight text-ink">QuickPick</span>
+          </Link>
+        )}
 
         {/* Delivery + location (desktop) */}
         <div className="hidden shrink-0 flex-col leading-tight sm:flex">
