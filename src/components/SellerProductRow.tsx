@@ -1,18 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { inr } from "@/lib/utils";
 import { notify } from "@/store/notify";
+import { ProductEditModal } from "@/components/ProductEditModal";
 import type { Product } from "@/lib/types";
 
-export function SellerProductRow({ product }: { product: Product }) {
+export function SellerProductRow({ product: initial }: { product: Product }) {
   const supabase = createClient();
-  const [price, setPrice] = useState(product.price);
-  const [stock, setStock] = useState(product.stock);
-  const [active, setActive] = useState(product.is_active);
+  const [product, setProduct] = useState(initial);
+  const [price, setPrice] = useState(initial.price);
+  const [stock, setStock] = useState(initial.stock);
+  const [active, setActive] = useState(initial.is_active);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   async function save() {
     setSaving(true);
@@ -26,6 +29,7 @@ export function SellerProductRow({ product }: { product: Product }) {
       return;
     }
     notify.success("Product updated");
+    setProduct((p) => ({ ...p, price, stock, is_active: active }));
     setDirty(false);
   }
 
@@ -36,7 +40,17 @@ export function SellerProductRow({ product }: { product: Product }) {
     if (error) {
       setActive(!next);
       notify.error(error.message);
+    } else {
+      setProduct((p) => ({ ...p, is_active: next }));
     }
+  }
+
+  function handleSaved(updated: Product) {
+    setProduct(updated);
+    setPrice(updated.price);
+    setStock(updated.stock);
+    setActive(updated.is_active);
+    setDirty(false);
   }
 
   return (
@@ -81,6 +95,13 @@ export function SellerProductRow({ product }: { product: Product }) {
         <button className="btn-primary py-1" disabled={saving} onClick={save}>
           {saving ? "…" : "Save"}
         </button>
+      )}
+      <button className="btn-ghost p-1.5" onClick={() => setEditing(true)} aria-label="Edit product">
+        <Pencil className="h-4 w-4" />
+      </button>
+
+      {editing && (
+        <ProductEditModal product={product} onClose={() => setEditing(false)} onSaved={handleSaved} />
       )}
     </div>
   );
