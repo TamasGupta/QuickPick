@@ -1,4 +1,4 @@
-# ⚡ QuickPick
+# ⚡ GrabOn
 
 A multi-seller **quick-commerce PWA** (like Blinkit / Zepto). Sellers bulk-list
 their catalog by uploading a **CSV, Excel, or PDF**; buyers browse, order, pay

@@ -127,6 +127,14 @@
   }
 }
 
+/* Exempted from the reduced-motion override above: a slow linear background
+   pan (no parallax/zoom/spin) isn't the kind of motion that rule exists to
+   protect against, and this is purely decorative. Class selector beats the
+   `*` selector's !important on specificity, regardless of source order. */
+.hero-carousel-track {
+  transition-duration: var(--hero-duration, 700ms) !important;
+}
+
 @keyframes shimmer {
   0% {
     background-position: 100% 0;

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Zap, MapPin, Search, ShoppingCart, ChevronDown, User } from "lucide-react";
+import { MapPin, Search, ShoppingCart, ChevronDown, User } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { createClient } from "@/lib/supabase/client";
+import { LogoMark } from "@/components/Logo";
 import type { Address } from "@/lib/types";
 
 export function Header() {
@@ -20,6 +21,7 @@ export function Header() {
   const [q, setQ] = useState(params.get("q") ?? "");
   const [mounted, setMounted] = useState(false);
   const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const supabase = createClient();
   // Cart count comes from a persisted store that rehydrates on the client;
   // gate it behind `mounted` so SSR and first client render match.
@@ -41,6 +43,7 @@ export function Header() {
   useEffect(() => {
     if (!loggedIn) {
       setDefaultAddress(null);
+      setFullName(null);
       return;
     }
     supabase
@@ -49,6 +52,15 @@ export function Header() {
       .order("is_default", { ascending: false })
       .limit(1)
       .then(({ data }) => setDefaultAddress((data?.[0] as Address) ?? null));
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", data.user.id)
+        .single();
+      setFullName(profile?.full_name ?? null);
+    });
   }, [supabase, loggedIn]);
 
   function submitSearch(e: React.FormEvent) {
@@ -63,17 +75,17 @@ export function Header() {
             since clicking through to the buyer listing page there is unwanted. */}
         {inConsole ? (
           <span className="flex shrink-0 items-center gap-1.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
-              <Zap className="h-5 w-5 fill-white" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-accent-500 text-white shadow-sm">
+              <LogoMark className="h-5 w-5" />
             </span>
-            <span className="text-xl font-extrabold tracking-tight text-ink">QuickPick</span>
+            <span className="text-xl font-extrabold tracking-tight text-ink">GrabOn</span>
           </span>
         ) : (
           <Link href="/" className="flex shrink-0 items-center gap-1.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
-              <Zap className="h-5 w-5 fill-white" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-accent-500 text-white shadow-sm">
+              <LogoMark className="h-5 w-5" />
             </span>
-            <span className="text-xl font-extrabold tracking-tight text-ink">QuickPick</span>
+            <span className="text-xl font-extrabold tracking-tight text-ink">GrabOn</span>
           </Link>
         )}
 
@@ -116,7 +128,7 @@ export function Header() {
               title={phone ? `+${phone}` : undefined}
             >
               <User className="h-5 w-5" />
-              <span className="hidden md:inline">Account</span>
+              <span className="hidden max-w-[140px] truncate md:inline">{fullName || "Account"}</span>
             </Link>
           ) : (
             <Link href="/login" className="btn-outline hidden sm:inline-flex">

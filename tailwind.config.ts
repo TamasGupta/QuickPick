@@ -56,9 +56,17 @@ const config: Config = {
         "2xl": "1.25rem",
       },
       keyframes: {
+        // Opacity-only on purpose: this animates PageTransition's wrapper,
+        // which sits around every page's content. A `transform` here —
+        // even a no-op `translateY(0)` at the end state — creates a new
+        // containing block for the rest of that animation's lifetime,
+        // silently breaking `position: fixed` for anything nested inside
+        // (modals, toasts) by confining it to the page div instead of the
+        // real viewport. Confirmed live: ProductEditModal rendered off-
+        // screen at the bottom of the page until this was removed.
         "fade-in": {
-          "0%": { opacity: "0", transform: "translateY(6px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
         },
         "scale-in": {
           "0%": { transform: "scale(0.96)", opacity: "0" },

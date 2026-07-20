@@ -8,7 +8,7 @@
 // Its usage policy requires a descriptive User-Agent and asks for at most
 // ~1 request/sec, which fits this app's low-volume, human-triggered lookups.
 
-const USER_AGENT = "QuickPick/1.0 (quick-commerce delivery app; contact: naitik@techind.co)";
+const USER_AGENT = "GrabOn/1.0 (quick-commerce delivery app; contact: naitik@techind.co)";
 const FETCH_TIMEOUT_MS = 6000;
 
 export interface ResolvedLocation {

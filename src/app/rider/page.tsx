@@ -26,7 +26,7 @@ export default async function RiderPage() {
         </span>
         <p className="font-semibold text-ink">This account isn't set up as a delivery partner</p>
         <p className="mt-1 text-sm">
-          Delivery partner accounts are created by the QuickPick team. Contact support to get onboarded.
+          Delivery partner accounts are created by the GrabOn team. Contact support to get onboarded.
         </p>
       </div>
     );

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { AdminSellerRow } from "@/components/AdminSellerRow";
 import { AdminRiderRow } from "@/components/admin/AdminRiderRow";
@@ -26,7 +27,7 @@ export default async function AdminPage() {
       <div className="card mx-auto max-w-md p-8 text-center text-gray-500">
         <p className="text-4xl">🔒</p>
         <p className="mt-2 font-semibold">Admins only</p>
-        <p className="text-sm">This console is restricted to QuickPick administrators.</p>
+        <p className="text-sm">This console is restricted to GrabOn administrators.</p>
       </div>
     );
   }
@@ -48,7 +49,9 @@ export default async function AdminPage() {
       <div className="grid grid-cols-4 gap-3">
         <Stat label="Sellers" value={String(sellers?.length ?? 0)} />
         <Stat label="Riders" value={String(riders?.length ?? 0)} />
-        <Stat label="Products" value={String(productCount ?? 0)} />
+        <Link href="/admin/products" className="block transition hover:opacity-80">
+          <Stat label="Products" value={String(productCount ?? 0)} />
+        </Link>
         <Stat label="Orders" value={String(orderCount ?? 0)} />
       </div>
 
