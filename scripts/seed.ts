@@ -57,7 +57,7 @@ async function main() {
   const { data: seller } = await admin
     .from("sellers")
     .upsert(
-      { owner_id: userId, store_name: "QuickPick Demo Store", status: "approved", city: "Bengaluru", pincode: "560001" },
+      { owner_id: userId, store_name: "GrabOn Demo Store", status: "approved", city: "Bengaluru", pincode: "560001" },
       { onConflict: "owner_id" }
     )
     .select()

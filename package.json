@@ -1,8 +1,8 @@
 {
-  "name": "quickpick",
+  "name": "grabon",
   "version": "1.0.0",
   "private": true,
-  "description": "QuickPick - Multi-seller quick-commerce PWA",
+  "description": "GrabOn - Multi-seller quick-commerce PWA",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

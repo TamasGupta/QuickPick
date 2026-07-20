@@ -1,5 +1,5 @@
 -- ============================================================
--- QuickPick — Database schema (Postgres / Supabase)
+-- GrabOn — Database schema (Postgres / Supabase)
 -- Run in Supabase SQL editor (or `supabase db push`).
 -- Includes tables, indexes, Row-Level Security (RLS) policies,
 -- and helper functions for atomic stock decrement.

@@ -19,7 +19,7 @@ export default async function SellerDashboard() {
         </span>
         <p className="font-semibold text-ink">This account isn't set up as a seller</p>
         <p className="mt-1 text-sm">
-          Seller accounts are created by the QuickPick team. Contact support to get onboarded.
+          Seller accounts are created by the GrabOn team. Contact support to get onboarded.
         </p>
       </div>
     );

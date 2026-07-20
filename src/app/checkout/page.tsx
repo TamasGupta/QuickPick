@@ -206,7 +206,7 @@ export default function CheckoutPage() {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: rp.amount,
         currency: "INR",
-        name: "QuickPick",
+        name: "GrabOn",
         description: `Order ${order.id.slice(0, 8)}`,
         order_id: rp.razorpay_order_id,
         handler: async (resp: any) => {

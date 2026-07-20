@@ -24,7 +24,7 @@ export default async function AdminProductsPage() {
       <div className="card mx-auto max-w-md p-8 text-center text-gray-500">
         <p className="text-4xl">🔒</p>
         <p className="mt-2 font-semibold">Admins only</p>
-        <p className="text-sm">This console is restricted to QuickPick administrators.</p>
+        <p className="text-sm">This console is restricted to GrabOn administrators.</p>
       </div>
     );
   }

@@ -1,4 +1,4 @@
-# QuickPick — Product Requirements Document (PRD)
+# GrabOn — Product Requirements Document (PRD)
 
 **Version:** 1.0
 **Date:** 2026-07-10
@@ -9,7 +9,7 @@
 
 ## 1. Overview
 
-**QuickPick** is a multi-seller **quick-commerce** platform (think Blinkit / Zepto / Instacart) that lets local sellers list their catalog in bulk by uploading a **CSV, Excel, or PDF** file, and lets buyers browse, order, and receive groceries & daily essentials fast.
+**GrabOn** is a multi-seller **quick-commerce** platform (think Blinkit / Zepto / Instacart) that lets local sellers list their catalog in bulk by uploading a **CSV, Excel, or PDF** file, and lets buyers browse, order, and receive groceries & daily essentials fast.
 
 We ship **PWA-first** (installable, offline-capable web app) so we can iterate quickly across desktop + mobile browsers with a single codebase, then wrap/native-port to iOS/Android based on user response. The architecture is chosen so the same backend/API powers the future mobile apps with zero rework.
 

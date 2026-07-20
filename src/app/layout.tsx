@@ -8,13 +8,13 @@ import { PageTransition } from "@/components/PageTransition";
 import { DynamicIsland } from "@/components/DynamicIsland";
 
 export const metadata: Metadata = {
-  title: "QuickPick — Groceries in minutes",
+  title: "GrabOn — Groceries in minutes",
   description: "Order groceries & daily essentials, delivered in minutes.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "QuickPick",
+    title: "GrabOn",
   },
 };
 

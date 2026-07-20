@@ -1,4 +1,4 @@
-// Shared domain types for QuickPick.
+// Shared domain types for GrabOn.
 
 export type UserRole = "buyer" | "seller" | "admin" | "rider";
 export type SellerStatus = "pending" | "approved" | "suspended";

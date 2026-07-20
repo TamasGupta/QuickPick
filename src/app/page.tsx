@@ -3,9 +3,20 @@ import { Zap, BadgePercent, Leaf, ArrowRight, type LucideIcon } from "lucide-rea
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ProductGrid } from "@/components/ProductGrid";
 import { LottieIcon, type LottieName } from "@/components/LottieIcon";
+import { HeroCarousel } from "@/components/HeroCarousel";
 import { categoryImage } from "@/lib/categories";
 import { PRODUCTS_PAGE_SIZE, encodeProductCursor } from "@/lib/utils";
 import type { Category, Product } from "@/lib/types";
+
+// Filenames under /public/banners — add/remove files there and update this
+// list to change what the homepage hero carousel shows.
+const HERO_BANNERS = [
+  "/banners/banner-1.jpg",
+  "/banners/banner-2.jpg",
+  "/banners/banner-3.jpg",
+  "/banners/banner-4.jpg",
+  "/banners/banner-5.jpg",
+];
 
 type ProductRow = Product & { created_at: string };
 
@@ -56,15 +67,13 @@ export default async function HomePage({
     <div className="space-y-6">
       {!searching && (
         <>
-          {/* Hero */}
-          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 via-brand-700 to-accent-600 p-6 text-white shadow-pop animate-fade-in sm:p-8">
-            <div className="absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10 animate-float" />
-            <div
-              className="absolute -bottom-12 right-16 h-32 w-32 rounded-full bg-white/10 animate-float"
-              style={{ animationDelay: "1s" }}
-            />
-            <div className="relative">
-              <span className="badge bg-white/20 text-white backdrop-blur">
+          {/* Hero — banners auto-scroll as the background; text/CTA overlay on top */}
+          <section className="relative isolate h-64 overflow-hidden rounded-3xl shadow-pop animate-fade-in sm:h-72 md:h-80">
+            <HeroCarousel images={HERO_BANNERS} />
+            {/* Scrim so white text stays readable over any banner's colors */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-black/10" />
+            <div className="relative flex h-full flex-col justify-center p-6 text-white sm:p-8">
+              <span className="badge w-fit bg-white/20 text-white backdrop-blur">
                 <Zap className="h-3 w-3 fill-white animate-pulse" /> Delivery in 11 minutes
               </span>
               <h1 className="mt-3 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">
@@ -75,7 +84,7 @@ export default async function HomePage({
               </p>
               <Link
                 href="#products"
-                className="btn group mt-4 bg-white font-bold text-brand-700 hover:bg-white/90"
+                className="btn group mt-4 w-fit bg-white font-bold text-brand-700 hover:bg-white/90"
               >
                 Start shopping
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />

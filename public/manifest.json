@@ -1,6 +1,6 @@
 {
-  "name": "QuickPick — Groceries in minutes",
-  "short_name": "QuickPick",
+  "name": "GrabOn — Groceries in minutes",
+  "short_name": "GrabOn",
   "description": "Order groceries & daily essentials, delivered fast.",
   "start_url": "/",
   "display": "standalone",
