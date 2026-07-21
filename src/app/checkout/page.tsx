@@ -21,7 +21,10 @@ const LocationPicker = dynamic(() => import("@/components/LocationPicker").then(
   loading: () => <div className="flex h-64 items-center justify-center rounded-xl bg-gray-50 text-sm text-ink-faint">Loading map…</div>,
 });
 
-const SLOTS = ["Now (10–20 min)", "Within 1 hour", "This evening", "Tomorrow morning"];
+// No slot picker — every order is prepared ASAP, matching the app's
+// "delivered in minutes" quick-commerce model. Still sent as delivery_slot
+// since sellers/riders display it on their order cards.
+const DELIVERY_SLOT = "Now (10–20 min)";
 
 declare global {
   interface Window {
@@ -38,7 +41,6 @@ export default function CheckoutPage() {
   const [loadingAddr, setLoadingAddr] = useState(true);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState<string>("");
-  const [slot, setSlot] = useState(SLOTS[0]);
   const [pay, setPay] = useState<"online" | "cod">("online");
   const [placing, setPlacing] = useState(false);
   const [showAddr, setShowAddr] = useState(false);
@@ -179,7 +181,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           seller_id: sellerId(),
           address_id: addressId,
-          delivery_slot: slot,
+          delivery_slot: DELIVERY_SLOT,
           payment_method: pay,
           items: items.map((i) => ({ product_id: i.id, name: i.name, price: i.price, qty: i.qty })),
         }),
@@ -202,6 +204,25 @@ export default function CheckoutPage() {
       const rp = await payRes.json();
       if (!payRes.ok) throw new Error(rp.error || "Payment init failed");
 
+      // The order row already exists at this point (status: 'placed',
+      // payment_status: 'pending') so Razorpay has something to reference —
+      // but if the payment never actually succeeds, that row must not be
+      // left behind looking like a real order. `paymentSucceeded` guards
+      // against a race where the modal's dismiss event fires around the same
+      // time as a genuine success: once Razorpay's own handler has fired at
+      // all, we never cancel, regardless of what happens next.
+      let paymentSucceeded = false;
+
+      async function cancelUnpaidOrder() {
+        // Scoped to payment_status='pending' so this can never touch an
+        // order a concurrent verify() call just marked paid.
+        await supabase
+          .from("orders")
+          .update({ status: "cancelled", payment_status: "failed" })
+          .eq("id", order.id)
+          .eq("payment_status", "pending");
+      }
+
       const rzp = new window.Razorpay({
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: rp.amount,
@@ -210,6 +231,7 @@ export default function CheckoutPage() {
         description: `Order ${order.id.slice(0, 8)}`,
         order_id: rp.razorpay_order_id,
         handler: async (resp: any) => {
+          paymentSucceeded = true;
           const v = await fetch("/api/payment/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -222,7 +244,17 @@ export default function CheckoutPage() {
             notify.error("Payment verification failed. Please contact support.");
           }
         },
+        modal: {
+          ondismiss: () => {
+            if (!paymentSucceeded) cancelUnpaidOrder();
+          },
+        },
         theme: { color: "#12924f" },
+      });
+      rzp.on("payment.failed", () => {
+        if (paymentSucceeded) return;
+        cancelUnpaidOrder();
+        notify.error("Payment failed — your order was not placed. Please try again.");
       });
       rzp.open();
     } catch (err) {
@@ -351,24 +383,6 @@ export default function CheckoutPage() {
           </span>
         </div>
       )}
-
-      {/* Slot */}
-      <section className="card p-4">
-        <h2 className="font-bold">Delivery slot</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {SLOTS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setSlot(s)}
-              className={`badge border px-3 py-1.5 ${
-                slot === s ? "border-brand-600 bg-brand-50 text-brand-700" : "border-gray-300"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </section>
 
       {/* Payment */}
       <section className="card p-4">
