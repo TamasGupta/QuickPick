@@ -21,7 +21,10 @@ const LocationPicker = dynamic(() => import("@/components/LocationPicker").then(
   loading: () => <div className="flex h-64 items-center justify-center rounded-xl bg-gray-50 text-sm text-ink-faint">Loading map…</div>,
 });
 
-const SLOTS = ["Now (10–20 min)", "Within 1 hour", "This evening", "Tomorrow morning"];
+// No slot picker — every order is prepared ASAP, matching the app's
+// "delivered in minutes" quick-commerce model. Still sent as delivery_slot
+// since sellers/riders display it on their order cards.
+const DELIVERY_SLOT = "Now (10–20 min)";
 
 declare global {
   interface Window {
@@ -38,7 +41,6 @@ export default function CheckoutPage() {
   const [loadingAddr, setLoadingAddr] = useState(true);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState<string>("");
-  const [slot, setSlot] = useState(SLOTS[0]);
   const [pay, setPay] = useState<"online" | "cod">("online");
   const [placing, setPlacing] = useState(false);
   const [showAddr, setShowAddr] = useState(false);
@@ -179,7 +181,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           seller_id: sellerId(),
           address_id: addressId,
-          delivery_slot: slot,
+          delivery_slot: DELIVERY_SLOT,
           payment_method: pay,
           items: items.map((i) => ({ product_id: i.id, name: i.name, price: i.price, qty: i.qty })),
         }),
@@ -381,24 +383,6 @@ export default function CheckoutPage() {
           </span>
         </div>
       )}
-
-      {/* Slot */}
-      <section className="card p-4">
-        <h2 className="font-bold">Delivery slot</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {SLOTS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setSlot(s)}
-              className={`badge border px-3 py-1.5 ${
-                slot === s ? "border-brand-600 bg-brand-50 text-brand-700" : "border-gray-300"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </section>
 
       {/* Payment */}
       <section className="card p-4">
