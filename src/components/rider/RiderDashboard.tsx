@@ -61,6 +61,17 @@ export function RiderDashboard({ name }: { name: string }) {
     return () => clearInterval(id);
   }, [refreshAvailCount]);
 
+  // Riders read orders through a service-role API route (/api/rider/orders),
+  // not a direct RLS-scoped client query — there's no orders_read policy
+  // granting riders row visibility, so a client-side postgres_changes
+  // subscription would never fire for them. Poll the open tab's list too
+  // (not just the available-count badge) so in-progress deliveries and newly
+  // packed orders show up without a manual refresh.
+  useEffect(() => {
+    const id = setInterval(() => load(tab), 15000);
+    return () => clearInterval(id);
+  }, [tab, load]);
+
   async function act(action: string, order_id: string, otp?: string) {
     setBusyId(order_id);
     const res = await fetch(`/api/rider/${action}`, {

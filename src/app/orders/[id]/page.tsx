@@ -4,6 +4,7 @@ import { MapPin, ShieldCheck, Bike, Phone } from "lucide-react";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { inr, ORDER_STATUS_LABELS } from "@/lib/utils";
 import { OrderTimeline } from "@/components/OrderTimeline";
+import { OrdersAutoRefresh } from "@/components/OrdersAutoRefresh";
 import { LottieIcon } from "@/components/LottieIcon";
 import type { Order, OrderStatus, Address } from "@/lib/types";
 
@@ -47,6 +48,7 @@ export default async function OrderDetailPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      <OrdersAutoRefresh />
       {searchParams.placed && (
         <div className="animate-fade-in flex flex-col items-center rounded-2xl bg-brand-50 p-2 text-center font-semibold text-brand-700">
           <LottieIcon name="cart-check" loop={false} className="h-24 w-24" />

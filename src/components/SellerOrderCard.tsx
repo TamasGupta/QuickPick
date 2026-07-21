@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { inr, ORDER_STATUS_LABELS, formatIST } from "@/lib/utils";
 import { notify } from "@/store/notify";
 import type { OrderStatus } from "@/lib/types";
@@ -38,6 +38,15 @@ export function SellerOrderCard({ order, items }: Props) {
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [busy, setBusy] = useState(false);
   const next = NEXT[status];
+
+  // Local state gives an instant optimistic update on click; this resyncs it
+  // whenever OrdersAutoRefresh triggers a router.refresh() and this card gets
+  // a fresh `order` prop from the server — otherwise, since the component
+  // isn't remounted (same key), useState's initial value would never update
+  // and a status change made elsewhere (rider app, another tab) wouldn't show.
+  useEffect(() => {
+    setStatus(order.status);
+  }, [order.status]);
 
   async function advance(to: OrderStatus) {
     setBusy(true);
