@@ -29,16 +29,25 @@ export function Header() {
 
   useEffect(() => {
     setMounted(true);
-    supabase.auth.getUser().then(({ data }) => {
-      setLoggedIn(!!data.user);
-      setPhone(data.user?.phone ?? null);
-    });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setLoggedIn(!!session?.user);
       setPhone(session?.user?.phone ?? null);
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
+
+  // Re-check the session on every client-side navigation, not just on mount.
+  // Logins that go through our static-OTP route (src/app/api/auth/static-login)
+  // set the session via a server response setting cookies directly, so they
+  // never fire supabase.auth.onAuthStateChange on this client SDK instance —
+  // without this, the header stays stuck showing "Login" until a manual
+  // page refresh remounts it.
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setLoggedIn(!!data.user);
+      setPhone(data.user?.phone ?? null);
+    });
+  }, [supabase, pathname]);
 
   useEffect(() => {
     if (!loggedIn) {
