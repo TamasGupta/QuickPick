@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Phone, User as UserIcon, Check } from "lucide-react";
+import { Phone, User as UserIcon, Check, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SkelLine } from "@/components/skeletons";
 import { notify } from "@/store/notify";
+import { usePwaInstall } from "@/store/pwaInstall";
 
 export default function AccountPage() {
   const supabase = createClient();
@@ -17,6 +18,10 @@ export default function AccountPage() {
   const [name, setName] = useState("");
   const [savedName, setSavedName] = useState("");
   const [saving, setSaving] = useState(false);
+  const deferredEvent = usePwaInstall((s) => s.deferredEvent);
+  const installed = usePwaInstall((s) => s.installed);
+  const setDeferredEvent = usePwaInstall((s) => s.setDeferredEvent);
+  const isIOS = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -54,6 +59,14 @@ export default function AccountPage() {
       }
     }
     setSaving(false);
+  }
+
+  async function installApp() {
+    if (!deferredEvent) return;
+    await deferredEvent.prompt();
+    const choice = await deferredEvent.userChoice;
+    if (choice.outcome === "accepted") notify.success("GrabOn installed");
+    setDeferredEvent(null);
   }
 
   async function logout() {
@@ -118,6 +131,18 @@ export default function AccountPage() {
         {role === "rider" && <Link href="/rider" className="btn-outline">Delivery dashboard</Link>}
         {role === "admin" && <Link href="/admin" className="btn-outline col-span-2">Admin console</Link>}
       </div>
+
+      {!installed && deferredEvent && (
+        <button className="btn-outline flex w-full items-center justify-center gap-2" onClick={installApp}>
+          <Download className="h-4 w-4" />
+          Install app
+        </button>
+      )}
+      {!installed && !deferredEvent && isIOS && (
+        <p className="text-center text-xs text-ink-soft">
+          To install: tap the Share icon, then &ldquo;Add to Home Screen&rdquo;.
+        </p>
+      )}
 
       <button className="btn-outline w-full text-red-600" onClick={logout}>
         Log out

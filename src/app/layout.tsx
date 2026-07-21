@@ -6,6 +6,7 @@ import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
 import { PageTransition } from "@/components/PageTransition";
 import { DynamicIsland } from "@/components/DynamicIsland";
+import { PwaInstallListener } from "@/components/PwaInstallListener";
 
 export const metadata: Metadata = {
   title: "GrabOn — Groceries in minutes",
@@ -34,6 +35,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen font-sans">
         <NextTopLoader color="#7c3aed" height={3} showSpinner={false} />
+        <PwaInstallListener />
         <DynamicIsland />
         <Suspense fallback={<div className="h-16 border-b border-gray-100 bg-white" />}>
           <Header />
