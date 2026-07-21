@@ -40,8 +40,13 @@ export interface Seller {
   owner_id: string;
   store_name: string;
   status: SellerStatus;
+  address_line: string | null;
   city: string | null;
+  state: string | null;
   pincode: string | null;
+  phone: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface Address {
