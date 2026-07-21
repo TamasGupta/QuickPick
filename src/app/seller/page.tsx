@@ -4,6 +4,7 @@ import { Store } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
+import { OrdersAutoRefresh } from "@/components/OrdersAutoRefresh";
 import { inr } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function SellerDashboard() {
 
   return (
     <div>
+      <OrdersAutoRefresh intervalMs={15000} />
       <SellerNav />
 
       <div className="mb-4 flex items-center justify-between">

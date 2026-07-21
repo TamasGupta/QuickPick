@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { MapPin, TriangleAlert } from "lucide-react";
+import { MapPin, TriangleAlert, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE } from "@/lib/utils";
@@ -44,6 +44,7 @@ export default function CheckoutPage() {
   const [pay, setPay] = useState<"online" | "cod">("online");
   const [placing, setPlacing] = useState(false);
   const [showAddr, setShowAddr] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
   const [picked, setPicked] = useState<PickedLocation | null>(null);
 
@@ -145,9 +146,54 @@ export default function CheckoutPage() {
 
   const outOfRange = distanceKm !== null && distanceKm > MAX_DELIVERY_RADIUS_KM;
 
+  function resetAddressForm() {
+    setShowAddr(false);
+    setEditingId(null);
+    setPicked(null);
+    setMapFor(null);
+    setForm({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
+  }
+
+  function startEdit(a: Address) {
+    setEditingId(a.id);
+    setForm({
+      line1: a.line1,
+      line2: a.line2 ?? "",
+      city: a.city ?? "",
+      state: a.state ?? "",
+      pincode: a.pincode,
+      label: a.label ?? "Home",
+    });
+    setPicked(a.lat != null && a.lng != null ? { lat: a.lat, lng: a.lng, city: a.city, state: a.state, pincode: a.pincode } : null);
+    setMapFor(null);
+    setShowAddr(true);
+  }
+
+  async function deleteAddress(id: string) {
+    if (!confirm("Remove this address?")) return;
+    const { error } = await supabase.from("addresses").delete().eq("id", id);
+    if (error) return notify.error(error.message);
+    const remaining = addresses.filter((a) => a.id !== id);
+    setAddresses(remaining);
+    if (addressId === id) setAddressId(remaining[0]?.id ?? "");
+  }
+
   async function saveAddress(e: React.FormEvent) {
     e.preventDefault();
     if (!userId) return;
+    if (editingId) {
+      const update = {
+        ...form,
+        lat: picked?.lat ?? null,
+        lng: picked?.lng ?? null,
+      };
+      const { data, error } = await supabase.from("addresses").update(update).eq("id", editingId).select().single();
+      if (error) return notify.error(error.message);
+      const a = data as Address;
+      setAddresses((prev) => prev.map((x) => (x.id === editingId ? a : x)));
+      resetAddressForm();
+      return;
+    }
     const { data, error } = await supabase
       .from("addresses")
       .insert({
@@ -163,10 +209,7 @@ export default function CheckoutPage() {
     const a = data as Address;
     setAddresses((p) => [...p, a]);
     setAddressId(a.id);
-    setShowAddr(false);
-    setPicked(null);
-    setMapFor(null);
-    setForm({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
+    resetAddressForm();
   }
 
   async function placeOrder() {
@@ -280,7 +323,10 @@ export default function CheckoutPage() {
       <section className="card p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-bold">Delivery address</h2>
-          <button className="text-sm text-brand-700" onClick={() => setShowAddr(!showAddr)}>
+          <button
+            className="text-sm text-brand-700"
+            onClick={() => (showAddr ? resetAddressForm() : setShowAddr(true))}
+          >
             {showAddr ? "Cancel" : "+ Add new"}
           </button>
         </div>
@@ -307,14 +353,32 @@ export default function CheckoutPage() {
                   <span className="flex-1">
                     <b>{a.label}</b> — {a.line1}, {a.line2 && `${a.line2}, `}
                     {a.city}{a.state && `, ${a.state}`} {a.pincode}
-                    <button
-                      type="button"
-                      onClick={() => setMapFor(mapFor === a.id ? null : a.id)}
-                      className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline"
-                    >
-                      <MapPin className="h-3 w-3" />
-                      {a.lat == null ? "Pin exact location" : "Adjust pin"}
-                    </button>
+                    <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setMapFor(mapFor === a.id ? null : a.id)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        {a.lat == null ? "Pin exact location" : "Adjust pin"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(a)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteAddress(a.id)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 underline"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Remove
+                      </button>
+                    </span>
                   </span>
                 </label>
                 {mapFor === a.id && (
@@ -369,7 +433,7 @@ export default function CheckoutPage() {
               Pinning your location helps the delivery partner reach your exact doorstep, and fills city/state/pincode automatically.
             </p>
 
-            <button className="btn-primary col-span-2">Save address</button>
+            <button className="btn-primary col-span-2">{editingId ? "Update address" : "Save address"}</button>
           </form>
         )}
       </section>

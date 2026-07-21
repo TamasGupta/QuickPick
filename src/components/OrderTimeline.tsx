@@ -17,6 +17,14 @@ export function OrderTimeline({
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
   const supabase = createClient();
 
+  // Resyncs when the parent Server Component re-fetches (via OrdersAutoRefresh
+  // polling on the order detail page) — this component isn't remounted on a
+  // router.refresh(), so without this its initial useState value would never
+  // update even though a fresh `initialStatus` prop comes in.
+  useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
   useEffect(() => {
     const channel = supabase
       .channel(`order-${orderId}`)

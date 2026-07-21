@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/seller/upload", label: "Bulk Upload" },
   { href: "/seller/products", label: "Products" },
   { href: "/seller/orders", label: "Orders" },
+  { href: "/seller/settings", label: "Settings" },
 ];
 
 export function SellerNav() {

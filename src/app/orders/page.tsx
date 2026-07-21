@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { inr, ORDER_STATUS_LABELS, formatIST } from "@/lib/utils";
+import { OrdersAutoRefresh } from "@/components/OrdersAutoRefresh";
 import type { Order } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function OrdersPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      <OrdersAutoRefresh />
       <h1 className="text-xl font-extrabold">Your orders</h1>
       {orders.length === 0 ? (
         <div className="card p-8 text-center text-gray-500">

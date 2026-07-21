@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
 import { SellerOrderCard } from "@/components/SellerOrderCard";
+import { OrdersAutoRefresh } from "@/components/OrdersAutoRefresh";
 import type { Order } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export default async function SellerOrdersPage() {
 
   return (
     <div>
+      <OrdersAutoRefresh />
       <SellerNav />
       <h1 className="mb-4 text-xl font-extrabold">Incoming orders ({list.length})</h1>
       {list.length === 0 ? (
