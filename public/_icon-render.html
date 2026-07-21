@@ -1,0 +1,42 @@
+<!doctype html>
+<html><body>
+<canvas id="c512" width="512" height="512"></canvas>
+<canvas id="c192" width="192" height="192"></canvas>
+<script>
+function drawIcon(ctx, size) {
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, '#7c3aed');
+  grad.addColorStop(1, '#d946ef');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  const scale = (size * 0.62) / 48;
+  const offset = (size - 48 * scale) / 2;
+  ctx.save();
+  ctx.translate(offset, offset);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.lineWidth = 3.4;
+  ctx.stroke(new Path2D('M24 4 A20 20 0 1 0 42 15'));
+  ctx.fill(new Path2D('M24 4 L30.5 1.8 L28.3 9.2 Z'));
+  ctx.lineWidth = 2.6;
+  ctx.stroke(new Path2D('M13 15 H16 L18 29 H32 L35 19 H19'));
+  ctx.beginPath(); ctx.arc(21, 34, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(30, 34, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+const c512 = document.getElementById('c512');
+drawIcon(c512.getContext('2d'), 512);
+const c192 = document.getElementById('c192');
+drawIcon(c192.getContext('2d'), 192);
+
+window.icon512 = c512.toDataURL('image/png');
+window.icon192 = c192.toDataURL('image/png');
+document.title = 'ready';
+</script>
+</body></html>

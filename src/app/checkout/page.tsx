@@ -202,6 +202,25 @@ export default function CheckoutPage() {
       const rp = await payRes.json();
       if (!payRes.ok) throw new Error(rp.error || "Payment init failed");
 
+      // The order row already exists at this point (status: 'placed',
+      // payment_status: 'pending') so Razorpay has something to reference —
+      // but if the payment never actually succeeds, that row must not be
+      // left behind looking like a real order. `paymentSucceeded` guards
+      // against a race where the modal's dismiss event fires around the same
+      // time as a genuine success: once Razorpay's own handler has fired at
+      // all, we never cancel, regardless of what happens next.
+      let paymentSucceeded = false;
+
+      async function cancelUnpaidOrder() {
+        // Scoped to payment_status='pending' so this can never touch an
+        // order a concurrent verify() call just marked paid.
+        await supabase
+          .from("orders")
+          .update({ status: "cancelled", payment_status: "failed" })
+          .eq("id", order.id)
+          .eq("payment_status", "pending");
+      }
+
       const rzp = new window.Razorpay({
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: rp.amount,
@@ -210,6 +229,7 @@ export default function CheckoutPage() {
         description: `Order ${order.id.slice(0, 8)}`,
         order_id: rp.razorpay_order_id,
         handler: async (resp: any) => {
+          paymentSucceeded = true;
           const v = await fetch("/api/payment/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -222,7 +242,17 @@ export default function CheckoutPage() {
             notify.error("Payment verification failed. Please contact support.");
           }
         },
+        modal: {
+          ondismiss: () => {
+            if (!paymentSucceeded) cancelUnpaidOrder();
+          },
+        },
         theme: { color: "#12924f" },
+      });
+      rzp.on("payment.failed", () => {
+        if (paymentSucceeded) return;
+        cancelUnpaidOrder();
+        notify.error("Payment failed — your order was not placed. Please try again.");
       });
       rzp.open();
     } catch (err) {
