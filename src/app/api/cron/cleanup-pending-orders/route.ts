@@ -20,6 +20,13 @@ const STALE_MINUTES = 30;
 // the standard Vercel Cron convention: it sends `Authorization: Bearer
 // $CRON_SECRET` automatically when CRON_SECRET is set as an env var — see
 // https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs.
+//
+// Scheduled once/day (03:00) — Vercel's Hobby plan rejects deployment of any
+// cron expression that would fire more than once a day (e.g. hourly). If you
+// upgrade to Pro, a tighter schedule (e.g. hourly) would clean up abandoned
+// orders sooner, but isn't required for correctness — STALE_MINUTES is
+// evaluated at whatever moment this runs, so it never cancels anything that
+// isn't actually stale, no matter the trigger frequency.
 export const GET = withApiLogging("/api/cron/cleanup-pending-orders", async (req: Request) => {
   const secret = process.env.CRON_SECRET;
   if (secret) {
