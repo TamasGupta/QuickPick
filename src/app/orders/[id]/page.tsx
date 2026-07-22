@@ -1,12 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { MapPin, ShieldCheck, Bike, Phone } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
-import { inr, ORDER_STATUS_LABELS } from "@/lib/utils";
-import { OrderTimeline } from "@/components/OrderTimeline";
-import { OrdersAutoRefresh } from "@/components/OrdersAutoRefresh";
+import { inr } from "@/lib/utils";
+import { OrderStatusLive } from "@/components/OrderStatusLive";
 import { LottieIcon } from "@/components/LottieIcon";
-import type { Order, OrderStatus, Address } from "@/lib/types";
+import type { Order, Address } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -43,12 +42,8 @@ export default async function OrderDetailPage({
   const address = addr as Address | null;
   const rider = riderRes.data as { full_name: string | null; phone: string | null } | null;
 
-  const active = o.status !== "delivered" && o.status !== "cancelled";
-  const showOtp = active && o.delivery_otp && o.status !== "placed";
-
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <OrdersAutoRefresh />
       {searchParams.placed && (
         <div className="animate-fade-in flex flex-col items-center rounded-2xl bg-brand-50 p-2 text-center font-semibold text-brand-700">
           <LottieIcon name="cart-check" loop={false} className="h-24 w-24" />
@@ -56,57 +51,11 @@ export default async function OrderDetailPage({
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-extrabold">Order #{o.id.slice(0, 8)}</h1>
-        <span className="badge bg-brand-50 text-brand-700">{ORDER_STATUS_LABELS[o.status]}</span>
-      </div>
-
-      {/* Delivery OTP */}
-      {showOtp && (
-        <section className="flex items-center gap-4 rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 p-4">
-          <ShieldCheck className="h-8 w-8 shrink-0 text-brand-600" />
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
-              Delivery OTP
-            </p>
-            <p className="text-3xl font-extrabold tracking-[0.35em] text-ink">{o.delivery_otp}</p>
-            <p className="text-xs text-ink-soft">Share this with your delivery partner at handover.</p>
-          </div>
-        </section>
-      )}
-
-      {/* On the way */}
-      {o.status === "out_for_delivery" && (
-        <section className="card flex flex-col items-center p-2 text-center">
-          <LottieIcon name="delivery-rider" className="h-32 w-32" />
-          <p className="-mt-2 text-sm font-bold text-ink">Your order is on the way!</p>
-        </section>
-      )}
-
-      {/* Rider */}
-      {rider && active && (
-        <section className="card flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
-              <Bike className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-sm font-bold text-ink">{rider.full_name ?? "Delivery partner"}</p>
-              <p className="text-xs text-ink-faint">Your delivery partner</p>
-            </div>
-          </div>
-          {rider.phone && (
-            <a href={`tel:${rider.phone}`} className="btn-outline">
-              <Phone className="h-4 w-4" /> Call
-            </a>
-          )}
-        </section>
-      )}
-
-      <section className="card p-4">
-        <h2 className="mb-3 font-bold">Tracking</h2>
-        <OrderTimeline orderId={o.id} initialStatus={o.status as OrderStatus} />
-      </section>
+      <OrderStatusLive
+        orderId={o.id}
+        orderIdShort={o.id.slice(0, 8)}
+        initial={{ status: o.status, delivery_otp: o.delivery_otp ?? null, rider }}
+      />
 
       {address && (
         <section className="card flex items-start gap-2 p-4">

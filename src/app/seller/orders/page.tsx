@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
-import { SellerOrderCard } from "@/components/SellerOrderCard";
-import { OrdersAutoRefresh } from "@/components/OrdersAutoRefresh";
+import { SellerOrdersList } from "@/components/SellerOrdersList";
 import type { Order } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,31 +29,15 @@ export default async function SellerOrdersPage() {
   const { data: allItems } = ids.length
     ? await supabase.from("order_items").select("*").in("order_id", ids)
     : { data: [] };
-  const itemsByOrder = new Map<string, any[]>();
+  const itemsByOrder: Record<string, any[]> = {};
   for (const it of allItems ?? []) {
-    const arr = itemsByOrder.get(it.order_id) ?? [];
-    arr.push(it);
-    itemsByOrder.set(it.order_id, arr);
+    (itemsByOrder[it.order_id] ??= []).push(it);
   }
 
   return (
     <div>
-      <OrdersAutoRefresh />
       <SellerNav />
-      <h1 className="mb-4 text-xl font-extrabold">Incoming orders ({list.length})</h1>
-      {list.length === 0 ? (
-        <div className="card p-8 text-center text-gray-500">No orders yet.</div>
-      ) : (
-        <div className="space-y-3">
-          {list.map((o) => (
-            <SellerOrderCard
-              key={o.id}
-              order={o as any}
-              items={itemsByOrder.get(o.id) ?? []}
-            />
-          ))}
-        </div>
-      )}
+      <SellerOrdersList sellerId={seller.id} initialOrders={list} initialItemsByOrder={itemsByOrder} />
     </div>
   );
 }

@@ -1,10 +1,8 @@
-import { LottieIcon } from "@/components/LottieIcon";
-
-// Branded animated loader: the loading-dots Lottie animation.
+// Full-page loader: a simple rounded spinner matching the app's brand color.
 export function Loader({ label = "Loading…" }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16">
-      <LottieIcon name="loading-dots" className="h-28 w-28" />
+    <div className="flex flex-col items-center justify-center gap-3 py-16">
+      <span className="h-10 w-10 animate-spin rounded-full border-4 border-brand-100 border-t-brand-600" />
       <p className="animate-pulse text-sm font-semibold text-ink-soft">{label}</p>
     </div>
   );

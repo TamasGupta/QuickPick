@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Zap, BadgePercent, Leaf, ArrowRight, type LucideIcon } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ProductGrid } from "@/components/ProductGrid";
-import { LottieIcon, type LottieName } from "@/components/LottieIcon";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { categoryImage } from "@/lib/categories";
 import { PRODUCTS_PAGE_SIZE, encodeProductCursor } from "@/lib/utils";
@@ -21,8 +20,7 @@ const HERO_BANNERS = [
 type ProductRow = Product & { created_at: string };
 
 interface ValueProp {
-  icon?: LucideIcon;
-  lottie?: LottieName;
+  icon: LucideIcon;
   title: string;
   sub: string;
 }
@@ -96,7 +94,7 @@ export default async function HomePage({
           <section className="grid grid-cols-3 gap-2.5">
             {(
               [
-                { lottie: "vehicle", title: "11-min", sub: "Delivery" },
+                { icon: Zap, title: "11-min", sub: "Delivery" },
                 { icon: BadgePercent, title: "Best prices", sub: "Everyday" },
                 { icon: Leaf, title: "Farm fresh", sub: "Handpicked" },
               ] satisfies ValueProp[]
@@ -106,11 +104,7 @@ export default async function HomePage({
                 className="card group flex flex-col items-center gap-1.5 p-3 text-center transition-all hover:-translate-y-0.5 hover:shadow-pop sm:flex-row sm:gap-3 sm:text-left"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-transform duration-300 group-hover:scale-110 group-hover:bg-brand-100">
-                  {v.lottie ? (
-                    <LottieIcon name={v.lottie} className="h-7 w-7" />
-                  ) : v.icon ? (
-                    <v.icon className="h-5 w-5 transition-transform group-hover:animate-wiggle" />
-                  ) : null}
+                  <v.icon className="h-5 w-5 transition-transform group-hover:animate-wiggle" />
                 </span>
                 <div className="min-w-0 leading-tight">
                   <p className="truncate text-xs font-bold text-ink sm:text-sm">{v.title}</p>
