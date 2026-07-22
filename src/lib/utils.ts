@@ -23,6 +23,10 @@ export function formatIST(date: string | Date): string {
 
 export const DELIVERY_FEE = Number(process.env.NEXT_PUBLIC_DELIVERY_FEE ?? 25);
 
+// Flat platform/handling fee, separate from the delivery fee — covers
+// packaging, payment gateway fees, etc. Shown as its own line in the bill.
+export const OTHER_CHARGES = Number(process.env.NEXT_PUBLIC_OTHER_CHARGES ?? 15);
+
 // Quick-commerce v1 rule: cap distinct products per cart/order. Doesn't
 // limit the quantity of an item already added, just how many different
 // products. Enforced client-side (store/cart.ts, so a buyer can't even add

@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Minus, Trash2, ShoppingCart, Clock, ArrowRight } from "lucide-react";
 import { useCart } from "@/store/cart";
-import { inr, DELIVERY_FEE, MIN_ORDER } from "@/lib/utils";
+import { inr, DELIVERY_FEE, OTHER_CHARGES, MIN_ORDER } from "@/lib/utils";
 
 export default function CartPage() {
   const router = useRouter();
   const { items, setQty, remove, subtotal } = useCart();
   const sub = subtotal();
   const belowMin = sub > 0 && sub < MIN_ORDER;
-  const total = sub + (sub > 0 ? DELIVERY_FEE : 0);
+  const total = sub + (sub > 0 ? DELIVERY_FEE + OTHER_CHARGES : 0);
 
   if (items.length === 0) {
     return (
@@ -85,6 +85,7 @@ export default function CartPage() {
         <p className="font-bold text-ink">Bill details</p>
         <div className="flex justify-between text-ink-soft"><span>Item total</span><span>{inr(sub)}</span></div>
         <div className="flex justify-between text-ink-soft"><span>Delivery fee</span><span>{inr(DELIVERY_FEE)}</span></div>
+        <div className="flex justify-between text-ink-soft"><span>Other charges</span><span>{inr(OTHER_CHARGES)}</span></div>
         <div className="flex justify-between border-t border-dashed border-gray-200 pt-2.5 text-base font-extrabold text-ink">
           <span>To pay</span><span>{inr(total)}</span>
         </div>

@@ -57,7 +57,7 @@ export const POST = withApiLogging(
     // Verify the buyer's delivery OTP before completing.
     const { data: order } = await service
       .from("orders")
-      .select("delivery_otp, rider_id, status, payment_status")
+      .select("delivery_otp, rider_id, seller_id, status, payment_status, subtotal, delivery_fee, other_charges")
       .eq("id", orderId)
       .single();
     if (!order || order.rider_id !== user.id || order.status !== "out_for_delivery") {
@@ -67,10 +67,55 @@ export const POST = withApiLogging(
       return NextResponse.json({ error: "Incorrect delivery OTP" }, { status: 422 });
     }
     // Cash collected on delivery -> mark COD orders paid.
+    const isCod = order.payment_status === "cod";
     const patch: Record<string, unknown> = { status: "delivered", updated_at: now() };
-    if (order.payment_status === "cod") patch.payment_status = "paid";
+    if (isCod) patch.payment_status = "paid";
     const { error } = await service.from("orders").update(patch).eq("id", orderId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Payout ledger — exactly the money that needs to change hands now that
+    // the order is delivered (see migration 011 for the full split logic).
+    // Online: the platform already holds the full `total`, so it owes the
+    // seller + rider their shares. COD: the rider just handed the seller the
+    // full `total` in cash, so the seller now owes the rider + platform.
+    const orderRef = orderId.slice(0, 8);
+    const base = { order_id: orderId, seller_id: order.seller_id, rider_id: order.rider_id };
+    const entries = isCod
+      ? [
+          {
+            ...base,
+            from_party: "seller",
+            to_party: "rider",
+            amount: order.delivery_fee,
+            label: `Delivery payout — order #${orderRef} (COD collected by seller)`,
+          },
+          {
+            ...base,
+            from_party: "seller",
+            to_party: "admin",
+            amount: order.other_charges,
+            label: `Platform fee — order #${orderRef} (COD collected by seller)`,
+          },
+        ]
+      : [
+          {
+            ...base,
+            from_party: "admin",
+            to_party: "seller",
+            amount: order.subtotal,
+            label: `Product payout — order #${orderRef}`,
+          },
+          {
+            ...base,
+            from_party: "admin",
+            to_party: "rider",
+            amount: order.delivery_fee,
+            label: `Delivery payout — order #${orderRef}`,
+          },
+        ];
+    const { error: ledgerErr } = await service.from("ledger_entries").insert(entries);
+    if (ledgerErr) console.error("[rider/deliver] ledger insert failed", ledgerErr.message);
+
     return NextResponse.json({ ok: true });
   }
 

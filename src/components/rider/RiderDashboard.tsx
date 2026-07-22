@@ -5,16 +5,18 @@ import {
   Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
-import { inr } from "@/lib/utils";
+import { inr, formatIST } from "@/lib/utils";
 import { notify } from "@/store/notify";
 import type { RiderOrder } from "@/lib/rider";
+import type { LedgerEntry } from "@/lib/types";
 
-type Tab = "available" | "active" | "history";
+type Tab = "available" | "active" | "history" | "earnings";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "available", label: "Available" },
   { key: "active", label: "My deliveries" },
   { key: "history", label: "Completed" },
+  { key: "earnings", label: "Earnings" },
 ];
 
 // Turn-by-turn directions (not just a dropped pin) from wherever the rider
@@ -36,6 +38,7 @@ export function RiderDashboard({ name }: { name: string }) {
   const [availCount, setAvailCount] = useState(0);
 
   const load = useCallback(async (t: Tab) => {
+    if (t === "earnings") return; // handled by <RiderEarnings> itself
     setLoading(true);
     const res = await fetch(`/api/rider/orders?scope=${t}`, { cache: "no-store" });
     const json = await res.json();
@@ -118,6 +121,10 @@ export function RiderDashboard({ name }: { name: string }) {
         ))}
       </div>
 
+      {tab === "earnings" ? (
+        <RiderEarnings />
+      ) : (
+        <>
       <div className="flex items-center justify-between px-1">
         <span className="text-sm text-ink-faint">
           {loading ? "Loading…" : `${orders.length} order${orders.length === 1 ? "" : "s"}`}
@@ -150,6 +157,82 @@ export function RiderDashboard({ name }: { name: string }) {
           ))}
         </div>
       )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function RiderEarnings() {
+  const [entries, setEntries] = useState<LedgerEntry[]>([]);
+  const [lifetime, setLifetime] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      const res = await fetch("/api/rider/ledger", { cache: "no-store" });
+      const json = await res.json();
+      if (!alive) return;
+      setEntries(json.entries ?? []);
+      setLifetime(json.lifetimeEarnings ?? 0);
+      setLoading(false);
+    }
+    load();
+    const id = setInterval(load, 15000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  const owed = entries.filter((e) => !e.settled);
+  const owedTotal = owed.reduce((s, e) => s + Number(e.amount), 0);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-10">
+        <Spinner className="h-7 w-7 border-brand-200 border-t-brand-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="card p-4">
+          <p className="text-xs text-gray-500">Owed to you</p>
+          <p className="mt-1 text-lg font-bold text-brand-700">{inr(owedTotal)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-gray-500">Lifetime earnings</p>
+          <p className="mt-1 text-lg font-bold text-ink">{inr(lifetime)}</p>
+        </div>
+      </div>
+      <p className="text-xs text-ink-faint">
+        Online orders: the platform pays you directly. COD orders: the seller collected your share in cash along
+        with theirs — they'll settle up with you.
+      </p>
+      <div className="card divide-y divide-gray-100">
+        {entries.length === 0 ? (
+          <p className="p-6 text-center text-sm text-ink-faint">No deliveries completed yet.</p>
+        ) : (
+          entries.map((e) => (
+            <div key={e.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-ink">{e.label}</p>
+                <p className="text-xs text-ink-faint">{formatIST(e.created_at)}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="font-bold">{inr(e.amount)}</span>
+                <span className={`badge ${e.settled ? "bg-brand-50 text-brand-700" : "bg-amber-50 text-amber-700"}`}>
+                  {e.settled ? "Settled" : "Pending"}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

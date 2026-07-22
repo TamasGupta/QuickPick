@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import { defaultRatelimit, authRatelimit, clientIp } from "@/lib/rateLimit";
 
 // Wraps every API route handler so errors are logged consistently and
-// nothing escapes as an unhandled 500 with no trace. On Vercel, console.error
-// output shows up directly in the project's Runtime Logs — no extra logging
-// service needed for a project this size.
+// nothing escapes as an unhandled 500 with no trace. Real server faults (5xx,
+// unhandled exceptions) also go to Sentry; 4xx responses stay console-only
+// since those are expected client errors (bad input, auth, etc.), not bugs.
+//
+// Also rate-limits by (route, client IP) via Upstash Redis — shared across
+// serverless instances, unlike an in-memory counter. Pass `rateLimit: false`
+// for routes that shouldn't be IP-throttled (e.g. the cron job, which is
+// already gated by CRON_SECRET and isn't user-facing traffic).
 //
 // Deliberately never logs the request body: several routes here handle
 // phone numbers, OTP codes, and passwords, and we don't want those ending
@@ -11,9 +18,27 @@ import { NextResponse } from "next/server";
 // is logged, plus the thrown error's message/stack for unhandled exceptions.
 type RouteHandler<C = unknown> = (req: Request, ctx: C) => Promise<Response> | Response;
 
-export function withApiLogging<C = unknown>(routeName: string, handler: RouteHandler<C>): RouteHandler<C> {
+interface Options {
+  rateLimit?: boolean | "auth";
+}
+
+export function withApiLogging<C = unknown>(
+  routeName: string,
+  handler: RouteHandler<C>,
+  { rateLimit = true }: Options = {}
+): RouteHandler<C> {
   return async (req, ctx) => {
     const start = Date.now();
+    if (rateLimit) {
+      const limiter = rateLimit === "auth" ? authRatelimit : defaultRatelimit;
+      const { success, reset } = await limiter.limit(`${routeName}:${clientIp(req)}`);
+      if (!success) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again shortly." },
+          { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))) } }
+        );
+      }
+    }
     try {
       const res = await handler(req, ctx);
       if (res.status >= 400) {
@@ -27,6 +52,12 @@ export function withApiLogging<C = unknown>(routeName: string, handler: RouteHan
           `[api] ${req.method} ${routeName} -> ${res.status} (${Date.now() - start}ms)`,
           body ? JSON.stringify(body) : ""
         );
+        if (res.status >= 500) {
+          Sentry.captureMessage(`${req.method} ${routeName} -> ${res.status}`, {
+            level: "error",
+            tags: { route: routeName, method: req.method, status: String(res.status) },
+          });
+        }
       }
       return res;
     } catch (err) {
@@ -52,6 +83,9 @@ export function withApiLogging<C = unknown>(routeName: string, handler: RouteHan
         error.message,
         error.stack
       );
+      Sentry.captureException(error, {
+        tags: { route: routeName, method: req.method },
+      });
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
   };

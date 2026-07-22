@@ -81,6 +81,7 @@ export default async function OrderDetailPage({
       <section className="card space-y-2 p-4 text-sm">
         <div className="flex justify-between"><span>Subtotal</span><span>{inr(o.subtotal)}</span></div>
         <div className="flex justify-between"><span>Delivery fee</span><span>{inr(o.delivery_fee)}</span></div>
+        <div className="flex justify-between"><span>Other charges</span><span>{inr(o.other_charges)}</span></div>
         <div className="flex justify-between border-t pt-2 text-base font-bold">
           <span>Total</span><span>{inr(o.total)}</span>
         </div>

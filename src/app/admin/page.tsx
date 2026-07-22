@@ -45,7 +45,10 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-extrabold">Admin console</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-extrabold">Admin console</h1>
+        <Link href="/admin/ledger" className="btn-outline">Payout ledger</Link>
+      </div>
       <div className="grid grid-cols-4 gap-3">
         <Stat label="Sellers" value={String(sellers?.length ?? 0)} />
         <Stat label="Riders" value={String(riders?.length ?? 0)} />

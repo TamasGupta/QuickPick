@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
-import { DELIVERY_FEE, MAX_CART_ITEMS } from "@/lib/utils";
+import { DELIVERY_FEE, OTHER_CHARGES, MAX_CART_ITEMS } from "@/lib/utils";
 import { withApiLogging } from "@/lib/apiLogger";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 
@@ -87,7 +87,7 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
     validated.push({ product_id: p.id, name: p.name, price: Number(p.price), qty: it.qty });
   }
 
-  const total = subtotal + DELIVERY_FEE;
+  const total = subtotal + DELIVERY_FEE + OTHER_CHARGES;
 
   // 4-digit delivery OTP the buyer shares with the rider at handover.
   const delivery_otp = String(Math.floor(1000 + Math.random() * 9000));
@@ -102,6 +102,7 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
       delivery_slot,
       subtotal,
       delivery_fee: DELIVERY_FEE,
+      other_charges: OTHER_CHARGES,
       total,
       status: "placed",
       payment_status: payment_method === "cod" ? "cod" : "pending",

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { MapPin, TriangleAlert, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
-import { inr, DELIVERY_FEE } from "@/lib/utils";
+import { inr, DELIVERY_FEE, OTHER_CHARGES } from "@/lib/utils";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { SkelLine } from "@/components/skeletons";
 import { notify } from "@/store/notify";
@@ -59,7 +59,7 @@ export default function CheckoutPage() {
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
 
   const sub = subtotal();
-  const total = sub + DELIVERY_FEE;
+  const total = sub + DELIVERY_FEE + OTHER_CHARGES;
 
   function applyPickedToForm(loc: PickedLocation) {
     setPicked(loc);
@@ -467,6 +467,7 @@ export default function CheckoutPage() {
       <section className="card space-y-2 p-4 text-sm">
         <div className="flex justify-between"><span>Subtotal</span><span>{inr(sub)}</span></div>
         <div className="flex justify-between"><span>Delivery fee</span><span>{inr(DELIVERY_FEE)}</span></div>
+        <div className="flex justify-between"><span>Other charges</span><span>{inr(OTHER_CHARGES)}</span></div>
         <div className="flex justify-between border-t pt-2 text-base font-bold">
           <span>Total</span><span>{inr(total)}</span>
         </div>
