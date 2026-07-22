@@ -40,9 +40,9 @@ export function SellerOrderCard({ order, items }: Props) {
   const next = NEXT[status];
 
   // Local state gives an instant optimistic update on click; this resyncs it
-  // whenever OrdersAutoRefresh triggers a router.refresh() and this card gets
-  // a fresh `order` prop from the server — otherwise, since the component
-  // isn't remounted (same key), useState's initial value would never update
+  // whenever SellerOrdersList's background poll passes down a fresh `order`
+  // prop — otherwise, since the component isn't remounted (same key),
+  // useState's initial value would never update
   // and a status change made elsewhere (rider app, another tab) wouldn't show.
   useEffect(() => {
     setStatus(order.status);

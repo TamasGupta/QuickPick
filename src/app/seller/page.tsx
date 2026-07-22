@@ -4,8 +4,7 @@ import { Store } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
-import { OrdersAutoRefresh } from "@/components/OrdersAutoRefresh";
-import { inr } from "@/lib/utils";
+import { SellerStatsLive } from "@/components/SellerStatsLive";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +44,6 @@ export default async function SellerDashboard() {
 
   return (
     <div>
-      <OrdersAutoRefresh intervalMs={15000} />
       <SellerNav />
 
       <div className="mb-4 flex items-center justify-between">
@@ -72,25 +70,11 @@ export default async function SellerDashboard() {
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="Products" value={String(productCount ?? 0)} />
-        <Stat label="Orders" value={String(orders?.length ?? 0)} />
-        <Stat label="Revenue" value={inr(revenue)} />
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <Stat label="Pending orders" value={String(pending)} />
-        <Stat label="Store status" value={seller.status} />
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card p-4">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
+      <SellerStatsLive
+        sellerId={seller.id}
+        storeStatus={seller.status}
+        initial={{ productCount: productCount ?? 0, orderCount: orders?.length ?? 0, revenue, pending }}
+      />
     </div>
   );
 }

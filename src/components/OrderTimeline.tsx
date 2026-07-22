@@ -1,44 +1,10 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { ORDER_STATUS_FLOW, type OrderStatus } from "@/lib/types";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 
-// Live order status timeline — subscribes to realtime updates so the buyer
-// sees status changes without refreshing.
-export function OrderTimeline({
-  orderId,
-  initialStatus,
-}: {
-  orderId: string;
-  initialStatus: OrderStatus;
-}) {
-  const [status, setStatus] = useState<OrderStatus>(initialStatus);
-  const supabase = createClient();
-
-  // Resyncs when the parent Server Component re-fetches (via OrdersAutoRefresh
-  // polling on the order detail page) — this component isn't remounted on a
-  // router.refresh(), so without this its initial useState value would never
-  // update even though a fresh `initialStatus` prop comes in.
-  useEffect(() => {
-    setStatus(initialStatus);
-  }, [initialStatus]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel(`order-${orderId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
-        (payload) => setStatus((payload.new as { status: OrderStatus }).status)
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [orderId, supabase]);
-
+// Pure presentational timeline — driven entirely by the `status` prop.
+// OrderStatusLive (the order detail page's live-polling wrapper) owns
+// fetching the current status and passes it down here.
+export function OrderTimeline({ status }: { status: OrderStatus }) {
   if (status === "cancelled") {
     return <p className="badge bg-red-50 text-red-600">Order cancelled</p>;
   }
