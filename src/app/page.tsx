@@ -1,10 +1,20 @@
 import Link from "next/link";
-import { Zap, BadgePercent, Leaf, ArrowRight, type LucideIcon } from "lucide-react";
+import {
+  Zap,
+  BadgePercent,
+  Leaf,
+  ArrowRight,
+  type LucideIcon,
+} from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ProductGrid } from "@/components/ProductGrid";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { categoryImage } from "@/lib/categories";
-import { PRODUCTS_PAGE_SIZE, encodeProductCursor } from "@/lib/utils";
+import {
+  PRODUCTS_PAGE_SIZE,
+  encodeProductCursor,
+  toPrefixTsQuery,
+} from "@/lib/utils";
 import type { Category, Product } from "@/lib/types";
 
 // Filenames under /public/banners — add/remove files there and update this
@@ -34,7 +44,10 @@ export default async function HomePage({
 }) {
   const supabase = createServerSupabase();
 
-  const { data: categories } = await supabase.from("categories").select("*").order("name");
+  const { data: categories } = await supabase
+    .from("categories")
+    .select("*")
+    .order("name");
 
   let query = supabase
     .from("products")
@@ -48,17 +61,22 @@ export default async function HomePage({
     // Fetch one extra row to know whether there's a next page.
     .limit(PRODUCTS_PAGE_SIZE + 1);
 
-  const activeCat = (categories as Category[] | null)?.find((c) => c.slug === searchParams.cat);
+  const activeCat = (categories as Category[] | null)?.find(
+    (c) => c.slug === searchParams.cat,
+  );
   if (activeCat) query = query.eq("category_id", activeCat.id);
-  if (searchParams.q) {
-    query = query.textSearch("search_tsv", searchParams.q, { type: "websearch", config: "simple" });
+  const tsQuery = searchParams.q ? toPrefixTsQuery(searchParams.q) : "";
+  if (tsQuery) {
+    query = query.textSearch("search_tsv", tsQuery, { config: "simple" });
   }
 
   const { data: products } = await query;
   const rows = (products as ProductRow[] | null) ?? [];
   const hasMore = rows.length > PRODUCTS_PAGE_SIZE;
   const list = hasMore ? rows.slice(0, PRODUCTS_PAGE_SIZE) : rows;
-  const nextCursor = hasMore ? encodeProductCursor(list[list.length - 1]) : null;
+  const nextCursor = hasMore
+    ? encodeProductCursor(list[list.length - 1])
+    : null;
   const searching = Boolean(searchParams.q || searchParams.cat);
 
   return (
@@ -72,17 +90,20 @@ export default async function HomePage({
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-black/10" />
             <div className="relative flex h-full flex-col justify-center p-6 text-white sm:p-8">
               <span className="badge w-fit bg-white/20 text-white backdrop-blur">
-                <Zap className="h-3 w-3 fill-white animate-pulse" /> Delivery in 11 minutes
+                <Zap className="h-3 w-3 fill-white animate-pulse" /> Delivery in
+                11 minutes
               </span>
               <h1 className="mt-3 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">
-                Groceries &amp; essentials,<br className="hidden sm:block" /> delivered in minutes
+                Groceries &amp; essentials,
+                <br className="hidden sm:block" /> delivered in minutes
               </h1>
               <p className="mt-1.5 max-w-md text-sm text-white/85">
-                Fresh produce, daily needs and more — at your door before you finish your coffee.
+                Fresh products, daily needs and more — at your door before you
+                finish your coffee.
               </p>
               <Link
                 href="#products"
-                className="btn group mt-4 w-fit bg-white font-bold text-brand-700 hover:bg-white/90"
+                className="btn group mt-4 w-fit border-[2px] border-r-brand-400 border-t-brand-400  border-brand-500 bg-white/10 font-bold text-white hover:bg-white/90 hover:text-brand-500/90"
               >
                 Start shopping
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -107,7 +128,9 @@ export default async function HomePage({
                   <v.icon className="h-5 w-5 transition-transform group-hover:animate-wiggle" />
                 </span>
                 <div className="min-w-0 leading-tight">
-                  <p className="truncate text-xs font-bold text-ink sm:text-sm">{v.title}</p>
+                  <p className="truncate text-xs font-bold text-ink sm:text-sm">
+                    {v.title}
+                  </p>
                   <p className="truncate text-[11px] text-ink-faint">{v.sub}</p>
                 </div>
               </div>
@@ -148,7 +171,9 @@ export default async function HomePage({
                     <span className="text-2xl">{c.icon}</span>
                   )}
                 </span>
-                <span className="text-[11px] font-semibold leading-tight text-ink-soft">{c.name}</span>
+                <span className="text-[11px] font-semibold leading-tight text-ink-soft">
+                  {c.name}
+                </span>
               </Link>
             );
           })}
@@ -159,7 +184,11 @@ export default async function HomePage({
       <section id="products">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-extrabold text-ink">
-            {searchParams.q ? `Results for "${searchParams.q}"` : activeCat ? activeCat.name : "Popular right now"}
+            {searchParams.q
+              ? `Results for "${searchParams.q}"`
+              : activeCat
+                ? activeCat.name
+                : "Popular right now"}
           </h2>
           {searching && (
             <Link href="/" className="text-sm font-semibold text-brand-700">
@@ -172,7 +201,9 @@ export default async function HomePage({
           <div className="card p-10 text-center text-ink-soft">
             <p className="text-5xl">🧺</p>
             <p className="mt-3 font-semibold text-ink">No products found.</p>
-            <p className="mt-1 text-sm">Try a different search or check back soon.</p>
+            <p className="mt-1 text-sm">
+              Try a different search or check back soon.
+            </p>
           </div>
         ) : (
           <ProductGrid

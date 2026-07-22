@@ -23,6 +23,10 @@ export function formatIST(date: string | Date): string {
 
 export const DELIVERY_FEE = Number(process.env.NEXT_PUBLIC_DELIVERY_FEE ?? 25);
 
+// Flat platform/handling fee, separate from the delivery fee — covers
+// packaging, payment gateway fees, etc. Shown as its own line in the bill.
+export const OTHER_CHARGES = Number(process.env.NEXT_PUBLIC_OTHER_CHARGES ?? 15);
+
 // Quick-commerce v1 rule: cap distinct products per cart/order. Doesn't
 // limit the quantity of an item already added, just how many different
 // products. Enforced client-side (store/cart.ts, so a buyer can't even add
@@ -49,6 +53,23 @@ export function decodeProductCursor(cursor: string): { created_at: string; id: s
   return { created_at: cursor.slice(0, i), id: cursor.slice(i + 1) };
 }
 export const MIN_ORDER = Number(process.env.NEXT_PUBLIC_MIN_ORDER ?? 99);
+
+// Builds a prefix-matching tsquery for product search, e.g. "mil bread" ->
+// "mil:*&bread:*". `websearch_to_tsquery` (what `.textSearch(..., {type:
+// "websearch"})` uses) only matches whole lexemes, so "mil" would never
+// match "milk" — that's the exact bug this fixes, and it matters more now
+// that the header search is debounced and fires on every partial keystroke.
+// Passing this string with no `type` option makes supabase-js hit
+// `to_tsquery` directly, so each term needs its own `:*` prefix operator.
+export function toPrefixTsQuery(q: string): string {
+  return q
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean)
+    .map((w) => `${w}:*`)
+    .join(" & ");
+}
 
 export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");

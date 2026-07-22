@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MapPin, Search, ShoppingCart, ChevronDown, User } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +16,10 @@ export function Header() {
   const params = useSearchParams();
   // Seller/admin/rider consoles don't shop — same route check BottomNav uses.
   const inConsole = pathname.startsWith("/seller") || pathname.startsWith("/admin") || pathname.startsWith("/rider");
+  // Login has no shopping context — search, delivery location, and the
+  // cart/login actions are all irrelevant (and "Login" is actively
+  // confusing) while you're already on the login screen.
+  const onLoginPage = pathname.startsWith("/login");
   const [phone, setPhone] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -72,8 +76,30 @@ export function Header() {
     });
   }, [supabase, loggedIn]);
 
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Clears the search box on a real route change (Cart, Account, a product
+  // page, etc.) — but not while the debounced search below is itself pushing
+  // ?q= onto "/", since that keeps pathname unchanged.
+  useEffect(() => {
+    setQ(params.get("q") ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      const trimmed = q.trim();
+      if (trimmed === (params.get("q") ?? "")) return;
+      router.push(trimmed ? `/?q=${encodeURIComponent(trimmed)}` : "/");
+    }, 400);
+    return () => clearTimeout(searchDebounceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     router.push(q.trim() ? `/?q=${encodeURIComponent(q.trim())}` : "/");
   }
 
@@ -98,81 +124,89 @@ export function Header() {
           </Link>
         )}
 
-        {/* Delivery + location (desktop) */}
-        <div className="hidden shrink-0 flex-col leading-tight sm:flex">
-          <span className="text-[13px] font-extrabold text-ink">Delivery in 11 minutes</span>
-          {mounted && loggedIn && defaultAddress ? (
-            <span className="flex items-center gap-1 text-xs text-ink-soft">
-              <MapPin className="h-3 w-3" />
-              <span className="max-w-[180px] truncate">
-                {defaultAddress.label} · {defaultAddress.city ?? ""} {defaultAddress.pincode}
-              </span>
-            </span>
-          ) : (
-            <Link href="/checkout" className="flex items-center gap-1 text-xs text-ink-soft">
-              <MapPin className="h-3 w-3" />
-              <span>Set delivery location</span>
-              <ChevronDown className="h-3 w-3" />
-            </Link>
-          )}
-        </div>
+        {!onLoginPage && (
+          <>
+            {/* Delivery + location (desktop) */}
+            <div className="hidden shrink-0 flex-col leading-tight sm:flex">
+              <span className="text-[13px] font-extrabold text-ink">Delivery in 11 minutes</span>
+              {mounted && loggedIn && defaultAddress ? (
+                <span className="flex items-center gap-1 text-xs text-ink-soft">
+                  <MapPin className="h-3 w-3" />
+                  <span className="max-w-[180px] truncate">
+                    {defaultAddress.label} · {defaultAddress.city ?? ""} {defaultAddress.pincode}
+                  </span>
+                </span>
+              ) : (
+                <Link href="/checkout" className="flex items-center gap-1 text-xs text-ink-soft">
+                  <MapPin className="h-3 w-3" />
+                  <span>Set delivery location</span>
+                  <ChevronDown className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
 
-        {/* Search (desktop) */}
-        <form onSubmit={submitSearch} className="relative hidden flex-1 sm:block">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder='Search "milk", "bread", "atta"…'
-            className="input pl-10"
-          />
-        </form>
+            {/* Search (desktop) */}
+            <form onSubmit={submitSearch} className="relative hidden flex-1 sm:block">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder='Search "milk", "bread", "atta"…'
+                className="input pl-10"
+              />
+            </form>
+          </>
+        )}
 
         {/* Actions */}
-        <nav className="ml-auto flex items-center gap-1.5 sm:gap-3">
-          {mounted && loggedIn ? (
-            <Link
-              href="/account"
-              className="btn-ghost hidden sm:inline-flex"
-              title={phone ? `+${phone}` : undefined}
-            >
-              <User className="h-5 w-5" />
-              <span className="hidden max-w-[140px] truncate md:inline">{fullName || "Account"}</span>
-            </Link>
-          ) : (
-            <Link href="/login" className="btn-outline hidden sm:inline-flex">
-              Login
-            </Link>
-          )}
-          {!inConsole && (
-            <Link
-              href="/cart"
-              className="relative inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
-            >
-              <ShoppingCart className="h-5 w-5" />
-              <span className="hidden sm:inline">{count > 0 ? `${count} item${count > 1 ? "s" : ""}` : "Cart"}</span>
-              {count > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-400 px-1 text-[11px] font-extrabold text-ink sm:hidden">
-                  {count}
-                </span>
-              )}
-            </Link>
-          )}
-        </nav>
+        {!onLoginPage && (
+          <nav className="ml-auto flex items-center gap-1.5 sm:gap-3">
+            {mounted && loggedIn ? (
+              <Link
+                href="/account"
+                className="btn-ghost hidden sm:inline-flex"
+                title={phone ? `+${phone}` : undefined}
+              >
+                <User className="h-5 w-5" />
+                <span className="hidden max-w-[140px] truncate md:inline">{fullName || "Account"}</span>
+              </Link>
+            ) : (
+              <Link href="/login" className="btn-outline hidden sm:inline-flex">
+                Login
+              </Link>
+            )}
+            {!inConsole && (
+              <Link
+                href="/cart"
+                className="relative inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                <span className="hidden sm:inline">{count > 0 ? `${count} item${count > 1 ? "s" : ""}` : "Cart"}</span>
+                {count > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-400 px-1 text-[11px] font-extrabold text-ink sm:hidden">
+                    {count}
+                  </span>
+                )}
+              </Link>
+            )}
+          </nav>
+        )}
       </div>
 
       {/* Search (mobile) */}
-      <div className="container-app pb-3 sm:hidden">
-        <form onSubmit={submitSearch} className="relative">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder='Search "milk", "bread", "atta"…'
-            className="input pl-10"
-          />
-        </form>
-      </div>
+      {!onLoginPage && (
+        <div className="container-app pb-3 sm:hidden">
+          <form onSubmit={submitSearch} className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder='Search "milk", "bread", "atta"…'
+              className="input pl-10"
+            />
+          </form>
+        </div>
+      )}
     </header>
   );
 }

@@ -31,6 +31,10 @@ do $$ begin
   create type upload_status as enum ('parsing', 'preview', 'importing', 'completed', 'failed');
 exception when duplicate_object then null; end $$;
 
+do $$ begin
+  create type ledger_party as enum ('admin', 'seller', 'rider');
+exception when duplicate_object then null; end $$;
+
 -- ------------------------------------------------------------
 -- PROFILES  (1:1 with auth.users)
 -- ------------------------------------------------------------
@@ -177,6 +181,7 @@ create table if not exists orders (
   payment_status payment_status not null default 'pending',
   subtotal numeric(10,2) not null default 0,
   delivery_fee numeric(10,2) not null default 0,
+  other_charges numeric(10,2) not null default 0,
   total numeric(10,2) not null default 0,
   address_id uuid references addresses(id) on delete set null,
   delivery_slot text,
@@ -201,6 +206,31 @@ create table if not exists order_items (
   qty integer not null check (qty > 0)
 );
 create index if not exists idx_order_items_order on order_items(order_id);
+
+-- ------------------------------------------------------------
+-- PAYOUT LEDGER
+-- Two rows per delivered order, only for money that actually needs to
+-- change hands (see migration 011 for the full reasoning):
+--   online -> (admin -> seller: subtotal), (admin -> rider: delivery_fee)
+--   cod    -> (seller -> rider: delivery_fee), (seller -> admin: other_charges)
+-- Inserted by the app (service client) when an order flips to 'delivered'.
+-- ------------------------------------------------------------
+create table if not exists ledger_entries (
+  id uuid primary key default uuid_generate_v4(),
+  order_id uuid not null references orders(id) on delete cascade,
+  seller_id uuid not null references sellers(id) on delete cascade,
+  rider_id uuid references profiles(id) on delete set null,
+  from_party ledger_party not null,
+  to_party ledger_party not null,
+  amount numeric(10,2) not null,
+  label text not null,
+  settled boolean not null default false,
+  settled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_ledger_order on ledger_entries(order_id);
+create index if not exists idx_ledger_seller on ledger_entries(seller_id);
+create index if not exists idx_ledger_rider on ledger_entries(rider_id);
 
 -- ------------------------------------------------------------
 -- UPLOAD JOBS (bulk import audit trail)
@@ -263,6 +293,7 @@ alter table order_items  enable row level security;
 alter table upload_jobs  enable row level security;
 -- No policies: only the service-role client (bypasses RLS) touches this table.
 alter table product_image_cache enable row level security;
+alter table ledger_entries enable row level security;
 
 -- PROFILES: user sees/edits own; admin sees all
 drop policy if exists "profiles_self" on profiles;
@@ -343,13 +374,64 @@ create policy "orders_read" on orders
 drop policy if exists "orders_buyer_insert" on orders;
 create policy "orders_buyer_insert" on orders
   for insert with check (buyer_id = auth.uid());
+-- orders_update is split three ways (buyer/seller/admin), each with its own
+-- WITH CHECK constraining what the resulting row can look like — see
+-- migration 009 for the full reasoning and the orders_guard_protected_columns
+-- trigger that closes the remaining gap (WITH CHECK alone can't stop other
+-- columns being smuggled into the same UPDATE statement).
 drop policy if exists "orders_update" on orders;
-create policy "orders_update" on orders
-  for update using (
-    buyer_id = auth.uid()
-    or exists (select 1 from sellers s where s.id = orders.seller_id and s.owner_id = auth.uid())
-    or is_admin()
+drop policy if exists "orders_update_buyer_cancel" on orders;
+create policy "orders_update_buyer_cancel" on orders
+  for update
+  using (buyer_id = auth.uid() and payment_status = 'pending')
+  with check (buyer_id = auth.uid() and status = 'cancelled' and payment_status = 'failed');
+
+drop policy if exists "orders_update_seller" on orders;
+create policy "orders_update_seller" on orders
+  for update
+  using (exists (select 1 from sellers s where s.id = orders.seller_id and s.owner_id = auth.uid()))
+  with check (
+    exists (select 1 from sellers s where s.id = orders.seller_id and s.owner_id = auth.uid())
+    and status in ('accepted', 'packed', 'cancelled')
   );
+
+drop policy if exists "orders_update_admin" on orders;
+create policy "orders_update_admin" on orders
+  for update
+  using (is_admin())
+  with check (is_admin());
+
+create or replace function orders_guard_protected_columns()
+returns trigger language plpgsql as $$
+begin
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+
+  if new.buyer_id is distinct from old.buyer_id
+    or new.seller_id is distinct from old.seller_id
+    or new.subtotal is distinct from old.subtotal
+    or new.delivery_fee is distinct from old.delivery_fee
+    or new.total is distinct from old.total
+    or new.address_id is distinct from old.address_id
+    or new.delivery_slot is distinct from old.delivery_slot
+    or new.razorpay_order_id is distinct from old.razorpay_order_id
+    or new.razorpay_payment_id is distinct from old.razorpay_payment_id
+    or new.rider_id is distinct from old.rider_id
+    or new.delivery_otp is distinct from old.delivery_otp
+    or new.created_at is distinct from old.created_at
+  then
+    raise exception 'Cannot modify protected order fields directly';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists orders_guard_protected_columns_trg on orders;
+create trigger orders_guard_protected_columns_trg
+  before update on orders
+  for each row execute function orders_guard_protected_columns();
 
 -- ORDER_ITEMS: visible if parent order is visible
 drop policy if exists "order_items_read" on order_items;
@@ -368,6 +450,56 @@ create policy "order_items_insert" on order_items
   for insert with check (
     exists (select 1 from orders o where o.id = order_items.order_id and o.buyer_id = auth.uid())
   );
+
+-- LEDGER_ENTRIES: sellers/riders see their own rows; only the payer (seller,
+-- or admin for admin->* rows) can mark an entry settled; service-role client
+-- is the only thing that ever inserts a row.
+drop policy if exists "ledger_read" on ledger_entries;
+create policy "ledger_read" on ledger_entries
+  for select using (
+    exists (select 1 from sellers s where s.id = ledger_entries.seller_id and s.owner_id = auth.uid())
+    or rider_id = auth.uid()
+    or is_admin()
+  );
+
+drop policy if exists "ledger_settle" on ledger_entries;
+create policy "ledger_settle" on ledger_entries
+  for update using (
+    (from_party = 'seller' and exists (select 1 from sellers s where s.id = ledger_entries.seller_id and s.owner_id = auth.uid()))
+    or is_admin()
+  )
+  with check (
+    (from_party = 'seller' and exists (select 1 from sellers s where s.id = ledger_entries.seller_id and s.owner_id = auth.uid()))
+    or is_admin()
+  );
+
+create or replace function ledger_guard_settle_only()
+returns trigger language plpgsql as $$
+begin
+  if auth.role() = 'service_role' or is_admin() then
+    return new;
+  end if;
+
+  if new.order_id is distinct from old.order_id
+    or new.seller_id is distinct from old.seller_id
+    or new.rider_id is distinct from old.rider_id
+    or new.from_party is distinct from old.from_party
+    or new.to_party is distinct from old.to_party
+    or new.amount is distinct from old.amount
+    or new.label is distinct from old.label
+    or new.created_at is distinct from old.created_at
+  then
+    raise exception 'Can only update settled/settled_at on a ledger entry';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists ledger_guard_settle_only_trg on ledger_entries;
+create trigger ledger_guard_settle_only_trg
+  before update on ledger_entries
+  for each row execute function ledger_guard_settle_only();
 
 -- UPLOAD_JOBS: seller owner only
 drop policy if exists "upload_jobs_own" on upload_jobs;

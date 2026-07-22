@@ -72,6 +72,7 @@ export interface Order {
   payment_status: PaymentStatus;
   subtotal: number;
   delivery_fee: number;
+  other_charges: number;
   total: number;
   delivery_slot: string | null;
   delivery_otp: string | null;
@@ -93,6 +94,25 @@ export interface ParsedProductRow {
   // Validation feedback per row (empty = valid)
   _errors: string[];
   _rowIndex: number;
+}
+
+export type LedgerParty = "admin" | "seller" | "rider";
+
+// One row = money that needs to move from `from_party` to `to_party` for a
+// single delivered order. See supabase/migrations/20260101000011_payout_ledger.sql
+// for the full reasoning on when/why these get created.
+export interface LedgerEntry {
+  id: string;
+  order_id: string;
+  seller_id: string;
+  rider_id: string | null;
+  from_party: LedgerParty;
+  to_party: LedgerParty;
+  amount: number;
+  label: string;
+  settled: boolean;
+  settled_at: string | null;
+  created_at: string;
 }
 
 export const ORDER_STATUS_FLOW: OrderStatus[] = [

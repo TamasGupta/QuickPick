@@ -74,4 +74,4 @@ export const POST = withApiLogging("/api/auth/static-login", async (req: Request
   if (signInErr) return NextResponse.json({ error: signInErr.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
-});
+}, { rateLimit: "auth" });

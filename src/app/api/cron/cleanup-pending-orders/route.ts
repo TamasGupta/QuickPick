@@ -49,4 +49,4 @@ export const GET = withApiLogging("/api/cron/cleanup-pending-orders", async (req
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ cleaned: data?.length ?? 0 });
-});
+}, { rateLimit: false });
