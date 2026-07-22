@@ -50,6 +50,23 @@ export function decodeProductCursor(cursor: string): { created_at: string; id: s
 }
 export const MIN_ORDER = Number(process.env.NEXT_PUBLIC_MIN_ORDER ?? 99);
 
+// Builds a prefix-matching tsquery for product search, e.g. "mil bread" ->
+// "mil:*&bread:*". `websearch_to_tsquery` (what `.textSearch(..., {type:
+// "websearch"})` uses) only matches whole lexemes, so "mil" would never
+// match "milk" — that's the exact bug this fixes, and it matters more now
+// that the header search is debounced and fires on every partial keystroke.
+// Passing this string with no `type` option makes supabase-js hit
+// `to_tsquery` directly, so each term needs its own `:*` prefix operator.
+export function toPrefixTsQuery(q: string): string {
+  return q
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean)
+    .map((w) => `${w}:*`)
+    .join(" & ");
+}
+
 export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
 }

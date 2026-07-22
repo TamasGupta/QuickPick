@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { PRODUCTS_PAGE_SIZE, encodeProductCursor, decodeProductCursor } from "@/lib/utils";
+import { PRODUCTS_PAGE_SIZE, encodeProductCursor, decodeProductCursor, toPrefixTsQuery } from "@/lib/utils";
 import { withApiLogging } from "@/lib/apiLogger";
 import type { Category, Product } from "@/lib/types";
 
@@ -36,8 +36,9 @@ export const GET = withApiLogging("/api/products", async (req: Request) => {
       .single();
     if (cat) query = query.eq("category_id", (cat as Category).id);
   }
-  if (q) {
-    query = query.textSearch("search_tsv", q, { type: "websearch", config: "simple" });
+  const tsQuery = q ? toPrefixTsQuery(q) : "";
+  if (tsQuery) {
+    query = query.textSearch("search_tsv", tsQuery, { config: "simple" });
   }
   if (cursorParam) {
     const cursor = decodeProductCursor(cursorParam);

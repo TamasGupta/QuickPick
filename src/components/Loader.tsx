@@ -1,9 +1,13 @@
-// Full-page loader: a simple rounded spinner matching the app's brand color.
+// Full-page loader: a solid brand-colored dot with a pulsing ring behind it.
 export function Loader({ label = "Loading…" }: { label?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16">
-      <span className="h-10 w-10 animate-spin rounded-full border-4 border-brand-100 border-t-brand-600" />
-      <p className="animate-pulse text-sm font-semibold text-ink-soft">{label}</p>
+      <span className="relative flex h-8 w-8 items-center justify-center">
+        <img src="/icons/loader.gif" alt="Brand Logo" />
+      </span>
+      <p className="animate-pulse text-sm font-semibold text-ink-soft">
+        {label}
+      </p>
     </div>
   );
 }

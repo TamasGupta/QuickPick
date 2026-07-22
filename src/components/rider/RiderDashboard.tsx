@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import {
-  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, Home, IndianRupee, Clock,
+  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { inr } from "@/lib/utils";
@@ -97,9 +96,6 @@ export function RiderDashboard({ name }: { name: string }) {
           <p className="text-xs text-white/80">Delivery partner</p>
           <p className="text-lg font-extrabold">{name}</p>
         </div>
-        <Link href="/" className="btn bg-white/15 text-white hover:bg-white/25">
-          <Home className="h-4 w-4" /> Shop
-        </Link>
       </div>
 
       {/* Tabs */}

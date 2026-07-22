@@ -4,7 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { ProductGrid } from "@/components/ProductGrid";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { categoryImage } from "@/lib/categories";
-import { PRODUCTS_PAGE_SIZE, encodeProductCursor } from "@/lib/utils";
+import { PRODUCTS_PAGE_SIZE, encodeProductCursor, toPrefixTsQuery } from "@/lib/utils";
 import type { Category, Product } from "@/lib/types";
 
 // Filenames under /public/banners — add/remove files there and update this
@@ -50,8 +50,9 @@ export default async function HomePage({
 
   const activeCat = (categories as Category[] | null)?.find((c) => c.slug === searchParams.cat);
   if (activeCat) query = query.eq("category_id", activeCat.id);
-  if (searchParams.q) {
-    query = query.textSearch("search_tsv", searchParams.q, { type: "websearch", config: "simple" });
+  const tsQuery = searchParams.q ? toPrefixTsQuery(searchParams.q) : "";
+  if (tsQuery) {
+    query = query.textSearch("search_tsv", tsQuery, { config: "simple" });
   }
 
   const { data: products } = await query;
