@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Phone, User as UserIcon, Check, Download } from "lucide-react";
+import { Phone, User as UserIcon, Check, Download, Info, ShieldCheck, FileText, RefreshCcw, Mail, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SkelLine } from "@/components/skeletons";
 import { notify } from "@/store/notify";
@@ -147,6 +147,31 @@ export default function AccountPage() {
       <button className="btn-outline w-full text-red-600" onClick={logout}>
         Log out
       </button>
+
+      {/* App info links */}
+      <div className="card divide-y divide-gray-100 overflow-hidden">
+        {[
+          { href: "/about", label: "About GrabOn", icon: Info },
+          { href: "/contact", label: "Contact Us", icon: Mail },
+          { href: "/refund-policy", label: "Refund & Cancellation Policy", icon: RefreshCcw },
+          { href: "/privacy", label: "Privacy Policy", icon: ShieldCheck },
+          { href: "/terms", label: "Terms & Conditions", icon: FileText },
+        ].map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink transition hover:bg-gray-50 active:bg-gray-100"
+          >
+            <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
+            <span className="flex-1">{label}</span>
+            <ChevronRight className="h-4 w-4 text-ink-faint" />
+          </Link>
+        ))}
+      </div>
+
+      <p className="pb-2 text-center text-[11px] text-ink-faint">
+        GrabOn · Agra, Uttar Pradesh
+      </p>
     </div>
   );
 }

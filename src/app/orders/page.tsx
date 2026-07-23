@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { BuyerOrdersList } from "@/components/BuyerOrdersList";
+import type { Metadata } from "next";
 import type { Order } from "@/lib/types";
+
+export const metadata: Metadata = {
+  title: "Your Orders",
+  description: "Track and manage all your GrabOn grocery orders in one place.",
+};
 
 export const dynamic = "force-dynamic";
 

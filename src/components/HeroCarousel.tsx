@@ -55,7 +55,7 @@ export function HeroCarousel({ images }: { images: string[] }) {
       >
         {slides.map((src, i) => (
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={i} src={src} alt="" className="h-full w-full shrink-0 object-cover" />
+          <img key={i} src={src} alt={`Promotional banner ${(i % images.length) + 1}`} className="h-full w-full shrink-0 object-cover" />
         ))}
       </div>
 
