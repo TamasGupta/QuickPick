@@ -1,7 +1,14 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { categoryImage } from "@/lib/categories";
 import type { Category } from "@/lib/types";
+
+export const metadata: Metadata = {
+  title: "Shop by Category",
+  description:
+    "Browse all grocery categories — fruits, vegetables, dairy, snacks and more. Fast delivery guaranteed.",
+};
 
 export const dynamic = "force-dynamic";
 

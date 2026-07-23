@@ -9,13 +9,42 @@ import { DynamicIsland } from "@/components/DynamicIsland";
 import { PwaInstallListener } from "@/components/PwaInstallListener";
 
 export const metadata: Metadata = {
-  title: "GrabOn — Groceries in minutes",
-  description: "Order groceries & daily essentials, delivered in minutes.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://grabon.vercel.app",
+  ),
+  title: {
+    default: "GrabOn — Groceries in minutes",
+    template: "%s | GrabOn",
+  },
+  description:
+    "Order fresh groceries & daily essentials online. Delivered to your door in minutes.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "GrabOn",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "GrabOn",
+    title: "GrabOn — Groceries in minutes",
+    description:
+      "Order fresh groceries & daily essentials online. Delivered to your door in minutes.",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "GrabOn — Groceries delivered in minutes",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "GrabOn — Groceries in minutes",
+    description:
+      "Order fresh groceries & daily essentials online. Delivered to your door in minutes.",
+    images: ["/og-image.jpg"],
   },
 };
 
