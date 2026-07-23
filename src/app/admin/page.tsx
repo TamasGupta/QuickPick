@@ -47,7 +47,10 @@ export default async function AdminPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-extrabold">Admin console</h1>
-        <Link href="/admin/ledger" className="btn-outline">Payout ledger</Link>
+        <div className="flex gap-2">
+          <Link href="/admin/orders" className="btn-outline">Order lifecycle</Link>
+          <Link href="/admin/ledger" className="btn-outline">Payout ledger</Link>
+        </div>
       </div>
       <div className="grid grid-cols-4 gap-3">
         <Stat label="Sellers" value={String(sellers?.length ?? 0)} />

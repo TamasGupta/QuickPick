@@ -63,11 +63,15 @@ export default function CheckoutPage() {
 
   function applyPickedToForm(loc: PickedLocation) {
     setPicked(loc);
+    // Prefer the pinned location's resolved address over whatever's already
+    // typed — re-pinning means moving to a different spot, so the old value
+    // shouldn't win just because a field was already filled in. Only fall
+    // back to it if reverse-geocoding didn't resolve that particular field.
     setForm((f) => ({
       ...f,
-      city: f.city || loc.city || "",
-      state: f.state || loc.state || "",
-      pincode: f.pincode || loc.pincode || "",
+      city: loc.city || f.city,
+      state: loc.state || f.state,
+      pincode: loc.pincode || f.pincode,
     }));
     setMapFor(null);
   }
@@ -78,9 +82,9 @@ export default function CheckoutPage() {
       const update = {
         lat: loc.lat,
         lng: loc.lng,
-        city: addr.city || loc.city || addr.city,
-        state: addr.state || loc.state || addr.state,
-        pincode: addr.pincode || loc.pincode || addr.pincode,
+        city: loc.city || addr.city,
+        state: loc.state || addr.state,
+        pincode: loc.pincode || addr.pincode,
       };
       const { error } = await supabase.from("addresses").update(update).eq("id", addr.id);
       if (error) throw error;

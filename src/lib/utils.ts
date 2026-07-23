@@ -75,6 +75,21 @@ export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
 }
 
+// UTC ISO instants bounding a calendar day in IST — e.g. "2026-07-23" ->
+// [2026-07-22T18:30:00.000Z, 2026-07-23T18:29:59.999Z]. Used to filter rows
+// by "IST day" so date-range filters line up with the same IST calendar-day
+// grouping the ledger/lifecycle views already use for display.
+export function istDayBounds(dateStr: string): { startIso: string; endIso: string } {
+  const start = new Date(`${dateStr}T00:00:00+05:30`);
+  const end = new Date(`${dateStr}T23:59:59.999+05:30`);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+// Generic page-size constant for offset-paginated history views (ledger,
+// order lifecycle) — separate from PRODUCTS_PAGE_SIZE since these are
+// admin/seller-facing lists, not the buyer product grid.
+export const HISTORY_PAGE_SIZE = 20;
+
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   placed: "Order Placed",
   accepted: "Accepted",

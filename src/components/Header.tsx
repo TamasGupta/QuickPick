@@ -16,6 +16,8 @@ export function Header() {
   const params = useSearchParams();
   // Seller/admin/rider consoles don't shop — same route check BottomNav uses.
   const inConsole = pathname.startsWith("/seller") || pathname.startsWith("/admin") || pathname.startsWith("/rider");
+  const inSellerConsole = pathname.startsWith("/seller");
+  const inAdminOrRiderConsole = pathname.startsWith("/admin") || pathname.startsWith("/rider");
   // Login has no shopping context — search, delivery location, and the
   // cart/login actions are all irrelevant (and "Login" is actively
   // confusing) while you're already on the login screen.
@@ -26,6 +28,7 @@ export function Header() {
   const [mounted, setMounted] = useState(false);
   const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
+  const [sellerAddr, setSellerAddr] = useState<{ city: string | null; pincode: string | null; lat: number | null } | null>(null);
   const supabase = createClient();
   // Cart count comes from a persisted store that rehydrates on the client;
   // gate it behind `mounted` so SSR and first client render match.
@@ -75,6 +78,26 @@ export function Header() {
       setFullName(profile?.full_name ?? null);
     });
   }, [supabase, loggedIn]);
+
+  // Seller's own store location — separate from the buyer delivery-address
+  // fetch above, and re-run on every seller-console navigation (not just
+  // login) so it picks up an edit made on /seller/settings the moment you
+  // navigate to another seller page.
+  useEffect(() => {
+    if (!loggedIn || !inSellerConsole) {
+      setSellerAddr(null);
+      return;
+    }
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: seller } = await supabase
+        .from("sellers")
+        .select("city, pincode, lat")
+        .eq("owner_id", data.user.id)
+        .maybeSingle();
+      setSellerAddr(seller ?? null);
+    });
+  }, [supabase, loggedIn, inSellerConsole, pathname]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -126,24 +149,48 @@ export function Header() {
 
         {!onLoginPage && (
           <>
-            {/* Delivery + location (desktop) */}
-            <div className="hidden shrink-0 flex-col leading-tight sm:flex">
-              <span className="text-[13px] font-extrabold text-ink">Delivery in 11 minutes</span>
-              {mounted && loggedIn && defaultAddress ? (
-                <span className="flex items-center gap-1 text-xs text-ink-soft">
-                  <MapPin className="h-3 w-3" />
-                  <span className="max-w-[180px] truncate">
-                    {defaultAddress.label} · {defaultAddress.city ?? ""} {defaultAddress.pincode}
+            {/* Delivery/store location (desktop) — buyer-facing pages show
+                the "Delivery in 11 minutes" delivery address; the seller
+                console shows their own store location instead; admin/rider
+                consoles have no location concept here at all, so nothing
+                renders for them. */}
+            {inSellerConsole ? (
+              <div className="hidden shrink-0 flex-col leading-tight sm:flex">
+                <span className="text-[13px] font-extrabold text-ink">Store location</span>
+                {mounted && sellerAddr?.lat != null ? (
+                  <span className="flex items-center gap-1 text-xs text-ink-soft">
+                    <MapPin className="h-3 w-3" />
+                    <span className="max-w-[180px] truncate">
+                      {[sellerAddr.city, sellerAddr.pincode].filter(Boolean).join(" ") || "Pinned"}
+                    </span>
                   </span>
-                </span>
-              ) : (
-                <Link href="/checkout" className="flex items-center gap-1 text-xs text-ink-soft">
-                  <MapPin className="h-3 w-3" />
-                  <span>Set delivery location</span>
-                  <ChevronDown className="h-3 w-3" />
-                </Link>
-              )}
-            </div>
+                ) : (
+                  <Link href="/seller/settings" className="flex items-center gap-1 text-xs text-ink-soft">
+                    <MapPin className="h-3 w-3" />
+                    <span>Set store location</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
+            ) : !inAdminOrRiderConsole ? (
+              <div className="hidden shrink-0 flex-col leading-tight sm:flex">
+                <span className="text-[13px] font-extrabold text-ink">Delivery in 11 minutes</span>
+                {mounted && loggedIn && defaultAddress ? (
+                  <span className="flex items-center gap-1 text-xs text-ink-soft">
+                    <MapPin className="h-3 w-3" />
+                    <span className="max-w-[180px] truncate">
+                      {defaultAddress.label} · {defaultAddress.city ?? ""} {defaultAddress.pincode}
+                    </span>
+                  </span>
+                ) : (
+                  <Link href="/checkout" className="flex items-center gap-1 text-xs text-ink-soft">
+                    <MapPin className="h-3 w-3" />
+                    <span>Set delivery location</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
+            ) : null}
 
             {/* Search (desktop) */}
             <form onSubmit={submitSearch} className="relative hidden flex-1 sm:block">

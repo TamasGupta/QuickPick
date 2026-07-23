@@ -37,13 +37,17 @@ export function RiderDashboard({ name }: { name: string }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [availCount, setAvailCount] = useState(0);
 
-  const load = useCallback(async (t: Tab) => {
+  // `silent` skips the loading spinner — used for background polling so the
+  // list just updates in place instead of flashing a spinner over it every
+  // cycle. Tab switches and user-triggered refreshes stay non-silent since
+  // there's a real wait with no prior data for that view yet.
+  const load = useCallback(async (t: Tab, opts: { silent?: boolean } = {}) => {
     if (t === "earnings") return; // handled by <RiderEarnings> itself
-    setLoading(true);
+    if (!opts.silent) setLoading(true);
     const res = await fetch(`/api/rider/orders?scope=${t}`, { cache: "no-store" });
     const json = await res.json();
     setOrders(json.orders ?? []);
-    setLoading(false);
+    if (!opts.silent) setLoading(false);
   }, []);
 
   // Poll available count for the tab badge.
@@ -66,11 +70,14 @@ export function RiderDashboard({ name }: { name: string }) {
   // Riders read orders through a service-role API route (/api/rider/orders),
   // not a direct RLS-scoped client query — there's no orders_read policy
   // granting riders row visibility, so a client-side postgres_changes
-  // subscription would never fire for them. Poll the open tab's list too
-  // (not just the available-count badge) so in-progress deliveries and newly
-  // packed orders show up without a manual refresh.
+  // subscription would never fire for them. Only "available" actually needs
+  // background polling — new orders can appear there any time from other
+  // sellers. "active"/"history" only ever change through this rider's own
+  // actions (claim/pickup/deliver), which already refresh immediately after
+  // completing, so polling them just causes needless flicker for no benefit.
   useEffect(() => {
-    const id = setInterval(() => load(tab), 15000);
+    if (tab !== "available") return;
+    const id = setInterval(() => load(tab, { silent: true }), 15000);
     return () => clearInterval(id);
   }, [tab, load]);
 

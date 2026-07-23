@@ -208,6 +208,34 @@ create table if not exists order_items (
 create index if not exists idx_order_items_order on order_items(order_id);
 
 -- ------------------------------------------------------------
+-- ORDER STATUS HISTORY (for the admin lifecycle view — see migration 012)
+-- Populated automatically by log_order_status_change(), never written
+-- directly by app code.
+-- ------------------------------------------------------------
+create table if not exists order_status_events (
+  id uuid primary key default uuid_generate_v4(),
+  order_id uuid not null references orders(id) on delete cascade,
+  status order_status not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_order_status_events_order on order_status_events(order_id);
+
+create or replace function log_order_status_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (tg_op = 'INSERT') or (new.status is distinct from old.status) then
+    insert into order_status_events (order_id, status) values (new.id, new.status);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists order_status_events_trg on orders;
+create trigger order_status_events_trg
+  after insert or update on orders
+  for each row execute function log_order_status_change();
+
+-- ------------------------------------------------------------
 -- PAYOUT LEDGER
 -- Two rows per delivered order, only for money that actually needs to
 -- change hands (see migration 011 for the full reasoning):
@@ -294,6 +322,7 @@ alter table upload_jobs  enable row level security;
 -- No policies: only the service-role client (bypasses RLS) touches this table.
 alter table product_image_cache enable row level security;
 alter table ledger_entries enable row level security;
+alter table order_status_events enable row level security;
 
 -- PROFILES: user sees/edits own; admin sees all
 drop policy if exists "profiles_self" on profiles;
@@ -449,6 +478,19 @@ drop policy if exists "order_items_insert" on order_items;
 create policy "order_items_insert" on order_items
   for insert with check (
     exists (select 1 from orders o where o.id = order_items.order_id and o.buyer_id = auth.uid())
+  );
+
+-- ORDER_STATUS_EVENTS: same visibility as the parent order
+drop policy if exists "order_status_events_read" on order_status_events;
+create policy "order_status_events_read" on order_status_events
+  for select using (
+    exists (
+      select 1 from orders o where o.id = order_status_events.order_id and (
+        o.buyer_id = auth.uid()
+        or exists (select 1 from sellers s where s.id = o.seller_id and s.owner_id = auth.uid())
+        or is_admin()
+      )
+    )
   );
 
 -- LEDGER_ENTRIES: sellers/riders see their own rows; only the payer (seller,

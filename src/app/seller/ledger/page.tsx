@@ -1,36 +1,61 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
-import { LedgerList } from "@/components/LedgerList";
-import { inr } from "@/lib/utils";
+import { SellerLedgerView } from "@/components/SellerLedgerView";
+import { HistoryFilters } from "@/components/HistoryFilters";
+import { istDayBounds, HISTORY_PAGE_SIZE } from "@/lib/utils";
 import type { LedgerEntry } from "@/lib/types";
+import type { RiderLedgerEntry } from "@/components/RiderPayoutsPanel";
 
 export const dynamic = "force-dynamic";
 
-export default async function SellerLedgerPage() {
+export default async function SellerLedgerPage({
+  searchParams,
+}: {
+  searchParams: { from?: string; to?: string; page?: string };
+}) {
   const { user, seller } = await getMySeller();
   if (!user) redirect("/login");
   if (!seller) redirect("/seller");
 
   const supabase = createServerSupabase();
+  const page = Math.max(1, Number(searchParams.page) || 1);
+  const offset = (page - 1) * HISTORY_PAGE_SIZE;
+
+  let query = supabase
+    .from("ledger_entries")
+    .select("*")
+    .eq("seller_id", seller.id)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + HISTORY_PAGE_SIZE); // one extra row -> hasMore
+  if (searchParams.from) query = query.gte("created_at", istDayBounds(searchParams.from).startIso);
+  if (searchParams.to) query = query.lte("created_at", istDayBounds(searchParams.to).endIso);
 
   const [{ data: entries }, { data: delivered }] = await Promise.all([
-    supabase
-      .from("ledger_entries")
-      .select("*")
-      .eq("seller_id", seller.id)
-      .order("created_at", { ascending: false }),
+    query,
     supabase.from("orders").select("subtotal").eq("seller_id", seller.id).eq("status", "delivered"),
   ]);
 
-  const list = (entries as LedgerEntry[]) ?? [];
-  const owedToYou = list.filter((e) => e.to_party === "seller" && !e.settled);
-  const youOwe = list.filter((e) => e.from_party === "seller" && !e.settled);
-  const settled = list.filter((e) => e.settled);
+  const rows = (entries as LedgerEntry[]) ?? [];
+  const hasMore = rows.length > HISTORY_PAGE_SIZE;
+  const list = hasMore ? rows.slice(0, HISTORY_PAGE_SIZE) : rows;
 
-  const owedToYouTotal = owedToYou.reduce((s, e) => s + Number(e.amount), 0);
-  const youOweTotal = youOwe.reduce((s, e) => s + Number(e.amount), 0);
+  // Rider names via the service client — RLS keeps other users' profiles
+  // private, so a seller-scoped query can't read them (same reason
+  // orders/[id]/page.tsx does this for the buyer-facing rider card).
+  const riderIds = [...new Set(list.map((e) => e.rider_id).filter(Boolean))] as string[];
+  const { data: riderProfiles } = riderIds.length
+    ? await createServiceSupabase().from("profiles").select("id, full_name").in("id", riderIds)
+    : { data: [] };
+  const riderNameById = new Map((riderProfiles ?? []).map((p) => [p.id, p.full_name]));
+  const enriched: RiderLedgerEntry[] = list.map((e) => ({
+    ...e,
+    rider_name: (e.rider_id && riderNameById.get(e.rider_id)) ?? null,
+  }));
+
+  // Lifetime earnings is a true all-time total — deliberately not affected
+  // by the date filter/pagination above, which only scope the history list.
   const lifetimeEarnings = (delivered ?? []).reduce((s, o) => s + Number(o.subtotal), 0);
 
   return (
@@ -38,47 +63,13 @@ export default async function SellerLedgerPage() {
       <SellerNav />
       <h1 className="mb-1 text-xl font-extrabold">Payout ledger</h1>
       <p className="mb-4 text-sm text-ink-soft">
-        Online orders: we pay you your share. COD orders: you collect the full amount from the rider, so you owe us
-        and the rider their shares back.
+        Online orders: we pay you your share. COD orders: you collect the full amount from the rider, so you owe the
+        rider and us their shares back — usually settled the day after delivery.
       </p>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card p-4">
-          <p className="text-xs text-gray-500">Owed to you</p>
-          <p className="mt-1 text-lg font-bold text-brand-700">{inr(owedToYouTotal)}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs text-gray-500">You owe</p>
-          <p className="mt-1 text-lg font-bold text-red-600">{inr(youOweTotal)}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs text-gray-500">Lifetime earnings</p>
-          <p className="mt-1 text-lg font-bold text-ink">{inr(lifetimeEarnings)}</p>
-        </div>
+      <div className="mb-4">
+        <HistoryFilters hasMore={hasMore} page={page} />
       </div>
-
-      <div className="mt-4">
-        <h2 className="mb-2 font-bold">Owed to you (we pay you)</h2>
-        <div className="card">
-          <LedgerList entries={owedToYou} canSettle={false} emptyLabel="Nothing pending from us right now." />
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <h2 className="mb-2 font-bold">You owe (settle these yourself)</h2>
-        <div className="card">
-          <LedgerList entries={youOwe} canSettle emptyLabel="You don't owe anything right now." />
-        </div>
-      </div>
-
-      {settled.length > 0 && (
-        <div className="mt-4">
-          <h2 className="mb-2 font-bold">Settled history</h2>
-          <div className="card">
-            <LedgerList entries={settled} canSettle={false} />
-          </div>
-        </div>
-      )}
+      <SellerLedgerView initialEntries={enriched} lifetimeEarnings={lifetimeEarnings} />
     </div>
   );
 }
