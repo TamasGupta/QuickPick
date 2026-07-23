@@ -58,11 +58,18 @@ function LoginForm() {
       .select("full_name, role")
       .eq("id", userId)
       .single();
-    setLoading(false);
     if (!profile?.full_name) {
+      // Genuinely a new form (name step) about to render — safe to
+      // re-enable its own button now.
+      setLoading(false);
       setStep("name");
       return;
     }
+    // Deliberately leave loading=true here: we're navigating away, not
+    // rendering a new interactive view. Clearing it before router.push/
+    // refresh land re-enables "Verify & continue" for a moment, and a
+    // second click during that gap fires a whole separate login attempt
+    // that races the first one's in-flight navigation.
     router.push(destinationFor(profile.role));
     router.refresh();
   }
@@ -147,7 +154,9 @@ function LoginForm() {
     if (user) {
       await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", user.id);
     }
-    setLoading(false);
+    // Deliberately leave loading=true — same reasoning as afterVerified()
+    // above: we're navigating away, so re-enabling the button here just
+    // opens a window for a second click to race the in-flight navigation.
     // Reaching this step means the account had no name yet, which only
     // happens for a brand-new buyer signup — always safe to use `next`.
     router.push(next);

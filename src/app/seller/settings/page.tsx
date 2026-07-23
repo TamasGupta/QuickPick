@@ -134,11 +134,17 @@ export default function SellerSettingsPage() {
                 onCancel={() => setShowMap(false)}
                 onConfirm={(loc) => {
                   setPicked(loc);
+                  // Prefer the freshly re-pinned location's resolved address
+                  // over whatever was already in the form — the whole point
+                  // of re-pinning is to move to a different spot, so the old
+                  // city/state/pincode shouldn't win just because they were
+                  // already filled in. Only fall back to the old value if
+                  // reverse-geocoding didn't resolve that particular field.
                   setForm((f) => ({
                     ...f,
-                    city: f.city || loc.city || "",
-                    state: f.state || loc.state || "",
-                    pincode: f.pincode || loc.pincode || "",
+                    city: loc.city || f.city,
+                    state: loc.state || f.state,
+                    pincode: loc.pincode || f.pincode,
                   }));
                   setShowMap(false);
                 }}

@@ -77,6 +77,11 @@ export function LocationPicker({
   const [results, setResults] = useState<AddressSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  // Set right before pickResult() writes the picked label into `query` —
+  // without this, the debounced search effect below would fire again on
+  // that write and immediately repopulate the dropdown you just closed.
+  const suppressNextSearchRef = useRef(false);
 
   // Reverse-geocode on every pin move, debounced so a drag isn't a request
   // per pixel — only settles 400ms after the pin stops moving.
@@ -137,9 +142,9 @@ export function LocationPicker({
     );
   }
 
-  async function runSearch(e: React.FormEvent) {
-    e.preventDefault();
+  async function runSearch() {
     if (!query.trim()) return;
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     setSearching(true);
     try {
       const res = await fetch(`/api/geo/search?q=${encodeURIComponent(query.trim())}`);
@@ -150,7 +155,31 @@ export function LocationPicker({
     }
   }
 
+  // Live suggestions as you type, debounced so every keystroke doesn't fire
+  // its own request — settles 400ms after typing pauses, same pattern as
+  // the reverse-geocode-on-drag effect above. Enter/the search button
+  // (runSearch) still search immediately, bypassing the wait.
+  useEffect(() => {
+    if (suppressNextSearchRef.current) {
+      suppressNextSearchRef.current = false;
+      return;
+    }
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      runSearch();
+    }, 400);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
   function pickResult(r: AddressSearchResult) {
+    suppressNextSearchRef.current = true;
     setPosition({ lat: r.lat, lng: r.lng });
     setFlyTarget({ lat: r.lat, lng: r.lng });
     setResults([]);
@@ -159,14 +188,26 @@ export function LocationPicker({
 
   return (
     <div className="space-y-2">
-      <form onSubmit={runSearch} className="relative flex gap-2">
+      {/* A plain div, not a <form> — LocationPicker gets embedded inside
+          other forms (checkout's add-address form, seller settings), and a
+          nested <form> is invalid HTML: browsers silently drop it, so its
+          submit button would actually submit the OUTER form instead of
+          running this search. Enter-to-search and the button's onClick both
+          just call runSearch() directly instead. */}
+      <div className="relative flex gap-2">
         <input
           className="input flex-1 text-sm"
           placeholder="Search for an area, street, landmark…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              runSearch();
+            }
+          }}
         />
-        <button type="submit" className="btn-outline shrink-0 px-3" disabled={searching}>
+        <button type="button" onClick={runSearch} className="btn-outline shrink-0 px-3" disabled={searching}>
           <Search className="h-4 w-4" />
         </button>
         {results.length > 0 && (
@@ -184,7 +225,7 @@ export function LocationPicker({
             ))}
           </ul>
         )}
-      </form>
+      </div>
 
       <div className="relative h-64 w-full overflow-hidden rounded-xl border border-gray-200">
         <MapContainer center={[position.lat, position.lng]} zoom={16} className="h-full w-full">

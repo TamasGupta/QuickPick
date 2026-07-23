@@ -30,13 +30,20 @@ export function withApiLogging<C = unknown>(
   return async (req, ctx) => {
     const start = Date.now();
     if (rateLimit) {
-      const limiter = rateLimit === "auth" ? authRatelimit : defaultRatelimit;
-      const { success, reset } = await limiter.limit(`${routeName}:${clientIp(req)}`);
-      if (!success) {
-        return NextResponse.json(
-          { error: "Too many requests. Please try again shortly." },
-          { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))) } }
-        );
+      // Fail OPEN, not closed: if Upstash is transiently unreachable, every
+      // API route should keep working, not 500 out entirely. Only an
+      // explicit "too many requests" result actually blocks the request.
+      try {
+        const limiter = rateLimit === "auth" ? authRatelimit : defaultRatelimit;
+        const { success, reset } = await limiter.limit(`${routeName}:${clientIp(req)}`);
+        if (!success) {
+          return NextResponse.json(
+            { error: "Too many requests. Please try again shortly." },
+            { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))) } }
+          );
+        }
+      } catch (err) {
+        console.error(`[api] ${req.method} ${routeName} -> rate limiter unavailable`, (err as Error).message);
       }
     }
     try {
