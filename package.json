@@ -10,12 +10,15 @@
     "lint": "next lint",
     "seed": "tsx scripts/seed.ts",
     "create-admin": "tsx scripts/create-admin.ts",
-    "load:browse":   "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/01_public_browse.js",
+    "load:browse": "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/01_public_browse.js",
     "load:checkout": "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/02_checkout_flow.js",
-    "load:seller":   "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/03_seller_dashboard.js",
-    "load:hours":    "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/04_store_hours.js",
-    "load:spike":    "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/05_spike.js",
-    "load:all":      "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/01_public_browse.js && C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/04_store_hours.js && C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/05_spike.js"
+    "load:seller": "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/03_seller_dashboard.js",
+    "load:hours": "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/04_store_hours.js",
+    "load:spike": "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/05_spike.js",
+    "load:all": "C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/01_public_browse.js && C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/04_store_hours.js && C:/PROGRA~1/k6/k6.exe run load-tests/scenarios/05_spike.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.19.9",
@@ -39,6 +42,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20.16.10",
     "@types/papaparse": "^5.3.14",
     "@types/react": "^18.3.11",

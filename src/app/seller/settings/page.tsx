@@ -102,13 +102,21 @@ function computeLocalIsOpen(schedule: DayForm[], timezone: string): boolean {
     const mm = parseInt(timeParts.find((p) => p.type === "minute")?.value ?? "0");
     const nowMinutes = (hh === 24 ? 0 : hh) * 60 + mm;
 
-    if (day.opens_at) {
-      const [oh, om] = day.opens_at.split(":").map(Number);
-      if (nowMinutes < oh * 60 + om) return false;
-    }
-    if (day.closes_at) {
-      const [ch, cm] = day.closes_at.split(":").map(Number);
-      if (nowMinutes >= ch * 60 + cm) return false;
+    const opensMins = day.opens_at ? timeToMins(day.opens_at) : null;
+    const closesMins = day.closes_at ? timeToMins(day.closes_at) : null;
+
+    if (opensMins !== null && closesMins !== null) {
+      if (opensMins < closesMins) {
+        // Standard same-day schedule (e.g. 09:00 AM to 10:00 PM)
+        return nowMinutes >= opensMins && nowMinutes < closesMins;
+      } else {
+        // Overnight / midnight schedule (e.g. 09:00 AM to 12:00 AM Midnight or 06:00 PM to 02:00 AM)
+        return nowMinutes >= opensMins || nowMinutes < closesMins;
+      }
+    } else if (opensMins !== null) {
+      return nowMinutes >= opensMins;
+    } else if (closesMins !== null) {
+      return nowMinutes < closesMins;
     }
     return true;
   } catch {
@@ -140,23 +148,6 @@ export default function SellerSettingsPage() {
 
   // Per-day validation errors keyed by day index
   const [dayErrors, setDayErrors] = useState<Record<number, string>>({});
-
-  function applyToAllDays() {
-    if (!bulkOpens && !bulkCloses) return;
-    // Validate bulk times before applying
-    if (bulkOpens && bulkCloses && timeToMins(bulkCloses) <= timeToMins(bulkOpens)) {
-      setBulkError("Closing time must be later than opening time.");
-      return;
-    }
-    setBulkError("");
-    setSchedule((prev) =>
-      prev.map((d) =>
-        d.is_closed
-          ? d // leave explicitly-closed days untouched
-          : { ...d, opens_at: bulkOpens, closes_at: bulkCloses }
-      )
-    );
-  }
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -204,37 +195,25 @@ export default function SellerSettingsPage() {
     });
   }, [supabase, router]);
 
+  function applyToAllDays() {
+    if (!bulkOpens && !bulkCloses) return;
+    setBulkError("");
+    setSchedule((prev) =>
+      prev.map((d) =>
+        d.is_closed
+          ? d // leave explicitly-closed days untouched
+          : { ...d, opens_at: bulkOpens, closes_at: bulkCloses }
+      )
+    );
+  }
+
   function setDay(idx: number, patch: Partial<DayForm>) {
     setSchedule((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)));
-    // Validate the updated row
-    setDayErrors((prev) => {
-      const updated = { ...prev };
-      const merged = { ...schedule[idx], ...patch };
-      if (
-        merged.opens_at &&
-        merged.closes_at &&
-        timeToMins(merged.closes_at) <= timeToMins(merged.opens_at)
-      ) {
-        updated[idx] = "Closing time must be later than opening time.";
-      } else {
-        delete updated[idx];
-      }
-      return updated;
-    });
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!seller) return;
-
-    // Pre-submit: check every open day for closes_at <= opens_at
-    const invalidDay = schedule.findIndex(
-      (d) => !d.is_closed && d.opens_at && d.closes_at && timeToMins(d.closes_at) <= timeToMins(d.opens_at)
-    );
-    if (invalidDay !== -1) {
-      notify.error(`${DAYS[invalidDay]}: closing time must be later than opening time.`);
-      return;
-    }
 
     setSaving(true);
     try {

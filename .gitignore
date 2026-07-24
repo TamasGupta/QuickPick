@@ -35,3 +35,8 @@ package-lock.json
 
 # k6 load test reports
 load-tests/reports/
+
+# Playwright artifacts
+playwright-report/
+test-results/
+

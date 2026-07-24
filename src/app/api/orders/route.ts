@@ -15,9 +15,22 @@ interface IncomingItem {
 // Prices are re-fetched server-side (never trust client prices).
 export const POST = withApiLogging("/api/orders", async (req: Request) => {
   const supabase = createServerSupabase();
-  const {
+  let {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Fallback to Bearer token from Authorization header if cookie is absent
+  // (e.g. API clients, mobile apps, or k6 load testing scenarios)
+  if (!user) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const service = createServiceSupabase();
+      const { data } = await service.auth.getUser(token);
+      user = data.user;
+    }
+  }
+
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const body = await req.json();
@@ -103,8 +116,8 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   // 4-digit delivery OTP the buyer shares with the rider at handover.
   const delivery_otp = String(Math.floor(1000 + Math.random() * 9000));
 
-  // Create order (as the buyer, so RLS + buyer_id are enforced).
-  const { data: order, error: oErr } = await supabase
+  // Create order with verified buyer_id
+  const { data: order, error: oErr } = await service
     .from("orders")
     .insert({
       buyer_id: user.id,

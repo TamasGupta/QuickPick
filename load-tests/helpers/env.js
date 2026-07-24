@@ -18,7 +18,7 @@ export const TEST_PASSWORD = __ENV.TEST_PASSWORD || "LoadTest@1234";
 // ── Seed data (fill in real UUIDs from your project) ───────────────────────
 // A seller whose store has products and an approved status.
 export const SELLER_ID =
-  __ENV.SELLER_ID || "3c11fabf-6a68-4988-9eca-eb5524ea5f88";
+  __ENV.SELLER_ID || "44e5485e-4b8d-4eb1-8117-28d64d38e8eb";
 
 // A product that belongs to SELLER_ID, with stock > 0 and is_active = true.
 export const PRODUCT_ID =
@@ -26,7 +26,7 @@ export const PRODUCT_ID =
 
 // A saved address that belongs to the TEST_EMAIL user, within delivery radius.
 export const ADDRESS_ID =
-  __ENV.ADDRESS_ID || "4395dbf8-3c21-487e-b32f-1021ac5a5af6";
+  __ENV.ADDRESS_ID || "541388f6-7e02-43f8-80db-ee1992a974a7";
 
 // A product name (used only in the order payload — re-priced server-side anyway).
 export const PRODUCT_NAME = __ENV.PRODUCT_NAME || "Test Product";

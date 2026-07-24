@@ -11,9 +11,20 @@ export const GET = withApiLogging(
   "/api/orders/[id]/live",
   async (_req: Request, { params }: { params: { id: string } }) => {
     const supabase = createServerSupabase();
-    const {
+    let {
       data: { user },
     } = await supabase.auth.getUser();
+
+    if (!user) {
+      const authHeader = _req.headers.get("authorization");
+      if (authHeader?.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        const service = createServiceSupabase();
+        const { data } = await service.auth.getUser(token);
+        user = data.user;
+      }
+    }
+
     if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
     // RLS on `orders` already scopes this to the buyer, the owning seller, or an admin.
