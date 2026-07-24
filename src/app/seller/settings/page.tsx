@@ -62,6 +62,12 @@ function formatTime(t: string): string {
   return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
 }
 
+// Convert "HH:MM" to total minutes — used for closes > opens comparison.
+function timeToMins(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
 // Compute the "current" open/closed status locally (for the live preview only —
 // the authoritative check is always done by Postgres in is_store_open()).
 function computeLocalIsOpen(schedule: DayForm[], timezone: string): boolean {
@@ -130,9 +136,19 @@ export default function SellerSettingsPage() {
   // "Apply to all days" quick-set inputs
   const [bulkOpens, setBulkOpens] = useState("");
   const [bulkCloses, setBulkCloses] = useState("");
+  const [bulkError, setBulkError] = useState("");
+
+  // Per-day validation errors keyed by day index
+  const [dayErrors, setDayErrors] = useState<Record<number, string>>({});
 
   function applyToAllDays() {
     if (!bulkOpens && !bulkCloses) return;
+    // Validate bulk times before applying
+    if (bulkOpens && bulkCloses && timeToMins(bulkCloses) <= timeToMins(bulkOpens)) {
+      setBulkError("Closing time must be later than opening time.");
+      return;
+    }
+    setBulkError("");
     setSchedule((prev) =>
       prev.map((d) =>
         d.is_closed
@@ -190,11 +206,36 @@ export default function SellerSettingsPage() {
 
   function setDay(idx: number, patch: Partial<DayForm>) {
     setSchedule((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)));
+    // Validate the updated row
+    setDayErrors((prev) => {
+      const updated = { ...prev };
+      const merged = { ...schedule[idx], ...patch };
+      if (
+        merged.opens_at &&
+        merged.closes_at &&
+        timeToMins(merged.closes_at) <= timeToMins(merged.opens_at)
+      ) {
+        updated[idx] = "Closing time must be later than opening time.";
+      } else {
+        delete updated[idx];
+      }
+      return updated;
+    });
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!seller) return;
+
+    // Pre-submit: check every open day for closes_at <= opens_at
+    const invalidDay = schedule.findIndex(
+      (d) => !d.is_closed && d.opens_at && d.closes_at && timeToMins(d.closes_at) <= timeToMins(d.opens_at)
+    );
+    if (invalidDay !== -1) {
+      notify.error(`${DAYS[invalidDay]}: closing time must be later than opening time.`);
+      return;
+    }
+
     setSaving(true);
     try {
       // 1. Save store details + timezone
@@ -376,7 +417,7 @@ export default function SellerSettingsPage() {
                   type="time"
                   className="input w-32 text-sm py-1"
                   value={bulkOpens}
-                  onChange={(e) => setBulkOpens(e.target.value)}
+                  onChange={(e) => { setBulkOpens(e.target.value); setBulkError(""); }}
                 />
               </div>
               <div className="flex flex-col gap-0.5">
@@ -385,7 +426,7 @@ export default function SellerSettingsPage() {
                   type="time"
                   className="input w-32 text-sm py-1"
                   value={bulkCloses}
-                  onChange={(e) => setBulkCloses(e.target.value)}
+                  onChange={(e) => { setBulkCloses(e.target.value); setBulkError(""); }}
                 />
               </div>
               <button
@@ -397,6 +438,9 @@ export default function SellerSettingsPage() {
                 Apply to all days
               </button>
             </div>
+            {bulkError && (
+              <p className="mt-1.5 text-[11px] text-red-600 font-medium">{bulkError}</p>
+            )}
             <p className="mt-1.5 text-[10px] text-ink-faint">
               Days marked as Closed are not affected. You can still adjust individual days below.
             </p>
@@ -456,13 +500,17 @@ export default function SellerSettingsPage() {
                         <div className="flex flex-col gap-0.5">
                           <input
                             type="time"
-                            className="input w-32 text-sm py-1"
+                            className={`input w-32 text-sm py-1 ${
+                              dayErrors[i] ? "border-red-400 focus:ring-red-300" : ""
+                            }`}
                             value={day.closes_at}
                             onChange={(e) => setDay(i, { closes_at: e.target.value })}
                           />
-                          {day.closes_at && (
+                          {dayErrors[i] ? (
+                            <span className="text-[10px] text-red-600 font-medium">{dayErrors[i]}</span>
+                          ) : day.closes_at ? (
                             <span className="text-[10px] text-ink-faint">{formatTime(day.closes_at)}</span>
-                          )}
+                          ) : null}
                         </div>
                       ) : (
                         <span className="text-ink-faint text-xs">—</span>
