@@ -67,21 +67,34 @@ function formatTime(t: string): string {
 function computeLocalIsOpen(schedule: DayForm[], timezone: string): boolean {
   try {
     const now = new Date();
-    const localStr = now.toLocaleString("en-US", { timeZone: timezone, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
-    // weekday map
-    const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const wdMatch = localStr.match(/^(\w+),/);
-    if (!wdMatch) return true;
-    const dow = weekdays.indexOf(wdMatch[1]);
+
+    // Use separate Intl.DateTimeFormat calls — mixing weekday + hour options in
+    // one toLocaleString produces inconsistent output across browsers/runtimes.
+    const dowStr = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+    }).format(now); // → "Sun" | "Mon" | … | "Sat"
+
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dow = WEEKDAYS.indexOf(dowStr);
     if (dow === -1) return true;
+
     const day = schedule[dow];
+    if (!day) return true;
     if (day.is_closed) return false;
 
-    const timeStr = now.toLocaleString("en-US", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false });
-    const parts = timeStr.match(/(\d+):(\d+)/);
-    if (!parts) return true;
-    const [, hh, mm] = parts;
-    const nowMinutes = parseInt(hh) * 60 + parseInt(mm);
+    // Separate time format — hour12:false can return "24:00" at midnight in
+    // some environments; clamp it to 0 to keep nowMinutes in [0, 1439].
+    const timeParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+
+    const hh = parseInt(timeParts.find((p) => p.type === "hour")?.value ?? "0");
+    const mm = parseInt(timeParts.find((p) => p.type === "minute")?.value ?? "0");
+    const nowMinutes = (hh === 24 ? 0 : hh) * 60 + mm;
 
     if (day.opens_at) {
       const [oh, om] = day.opens_at.split(":").map(Number);
