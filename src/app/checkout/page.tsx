@@ -4,15 +4,61 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { MapPin, TriangleAlert, Pencil, Trash2 } from "lucide-react";
+import { MapPin, TriangleAlert, Pencil, Trash2, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
 import { inr, DELIVERY_FEE, OTHER_CHARGES } from "@/lib/utils";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { SkelLine } from "@/components/skeletons";
 import { notify } from "@/store/notify";
-import type { Address } from "@/lib/types";
+import type { Address, StoreHoursStatus } from "@/lib/types";
 import type { PickedLocation } from "@/components/LocationPicker";
+
+// ─── Store-hours helpers ─────────────────────────────────────────────────────
+
+
+
+// Format a DB time string "HH:MM:SS" into "9:00 AM".
+function fmtTime(t: string | null): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
+
+// Return a human-readable description of today's hours from the schedule.
+// e.g. "9:00 AM – 10:00 PM" or "Closed today"
+function todayHoursLabel(hours: StoreHoursStatus): string {
+  try {
+    const now = new Date();
+    // Get today's day-of-week in the store's timezone (0=Sun…6=Sat)
+    const dowStr = now.toLocaleDateString("en-US", { timeZone: hours.timezone, weekday: "short" });
+    const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const dow = dowMap[dowStr] ?? new Date().getDay();
+    const row = hours.schedule.find((r) => r.day_of_week === dow);
+    if (!row) return "Closed today";
+    if (row.is_closed) return "Closed today";
+    const open  = fmtTime(row.opens_at);
+    const close = fmtTime(row.closes_at);
+    if (!open && !close) return "Open all day";
+    if (!open)  return `Until ${close}`;
+    if (!close) return `From ${open}`;
+    return `${open} – ${close}`;
+  } catch {
+    return "";
+  }
+}
+
+// Timezone abbreviation label (e.g. "Asia/Kolkata" → "IST").
+function tzAbbr(tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en", { timeZone: tz, timeZoneName: "short" })
+      .formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName")?.value ?? "";
+  } catch {
+    return "";
+  }
+}
 
 // Leaflet touches `window` at import time, so the map can only ever render
 // client-side — ssr:false keeps Next.js from trying to render it on the server.
@@ -57,6 +103,9 @@ export default function CheckoutPage() {
   // check runs server-side in /api/orders regardless.
   const [sellerLoc, setSellerLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
+
+  // Store hours — fetched once when the cart's seller is known.
+  const [storeHours, setStoreHours] = useState<StoreHoursStatus | null>(null);
 
   const sub = subtotal();
   const total = sub + DELIVERY_FEE + OTHER_CHARGES;
@@ -123,18 +172,22 @@ export default function CheckoutPage() {
     });
   }, [supabase, router]);
 
-  // Fetch the seller's store location once, for the client-side distance check.
+  // Fetch the seller's location + store hours once when cart seller is known.
   useEffect(() => {
     const sid = sellerId();
     if (!sid) return;
-    fetch(`/api/sellers/${sid}/location`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (json?.lat != null && json?.lng != null) {
-          setSellerLoc({ lat: json.lat, lng: json.lng });
-        }
-      })
-      .catch(() => {});
+    // Run both fetches in parallel.
+    Promise.all([
+      fetch(`/api/sellers/${sid}/location`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/sellers/${sid}/hours`).then((r) => (r.ok ? r.json() : null)),
+    ]).then(([locJson, hoursJson]) => {
+      if (locJson?.lat != null && locJson?.lng != null) {
+        setSellerLoc({ lat: locJson.lat, lng: locJson.lng });
+      }
+      if (hoursJson) {
+        setStoreHours(hoursJson as StoreHoursStatus);
+      }
+    }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -149,6 +202,8 @@ export default function CheckoutPage() {
   }, [addressId, addresses, sellerLoc]);
 
   const outOfRange = distanceKm !== null && distanceKm > MAX_DELIVERY_RADIUS_KM;
+  // When storeHours is null (not yet fetched / no hours configured) we don't block.
+  const storeClosed = storeHours !== null && storeHours.is_open === false;
 
   function resetAddressForm() {
     setShowAddr(false);
@@ -219,6 +274,7 @@ export default function CheckoutPage() {
   async function placeOrder() {
     if (!addressId) return notify.error("Please select a delivery address.");
     if (outOfRange) return notify.error("This store doesn't deliver to your address.");
+    if (storeClosed) return notify.error("This store is currently closed.");
     setPlacing(true);
     try {
       // 1) Create the order server-side.
@@ -452,6 +508,32 @@ export default function CheckoutPage() {
         </div>
       )}
 
+      {/* Store hours status */}
+      {storeHours && (
+        storeClosed ? (
+          <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">This store is currently closed</p>
+              <p className="mt-0.5 text-red-600">
+                {todayHoursLabel(storeHours)}
+                {tzAbbr(storeHours.timezone) ? ` (${tzAbbr(storeHours.timezone)})` : ""}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">
+            <Clock className="h-4 w-4 shrink-0" />
+            <span className="font-semibold">Open now</span>
+            <span className="text-brand-500">·</span>
+            <span className="text-brand-600">
+              {todayHoursLabel(storeHours)}
+              {tzAbbr(storeHours.timezone) ? ` (${tzAbbr(storeHours.timezone)})` : ""}
+            </span>
+          </div>
+        )
+      )}
+
       {/* Payment */}
       <section className="card p-4">
         <h2 className="font-bold">Payment</h2>
@@ -477,7 +559,7 @@ export default function CheckoutPage() {
         </div>
       </section>
 
-      <button className="btn-primary w-full" disabled={placing || outOfRange} onClick={placeOrder}>
+      <button className="btn-primary w-full" disabled={placing || outOfRange || storeClosed} onClick={placeOrder}>
         {placing ? "Placing order…" : pay === "cod" ? `Place order · ${inr(total)}` : `Pay ${inr(total)}`}
       </button>
     </div>

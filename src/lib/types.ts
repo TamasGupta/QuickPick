@@ -47,6 +47,26 @@ export interface Seller {
   phone: string | null;
   lat: number | null;
   lng: number | null;
+  timezone: string; // IANA tz string, e.g. "Asia/Kolkata"
+}
+
+// One row per (seller, day-of-week) in the store_hours table.
+// day_of_week: 0 = Sunday … 6 = Saturday (matches JS Date.getDay() and
+// Postgres EXTRACT(dow)). Mirrors supabase/migrations/20260101000013_store_hours.sql.
+export interface StoreHour {
+  id: string;
+  seller_id: string;
+  day_of_week: number;  // 0–6
+  is_closed: boolean;
+  opens_at: string | null;   // "HH:MM:SS" or null
+  closes_at: string | null;  // "HH:MM:SS" or null
+}
+
+// Shape returned by GET /api/sellers/:id/hours
+export interface StoreHoursStatus {
+  is_open: boolean;
+  timezone: string;
+  schedule: StoreHour[]; // up to 7 rows, ordered by day_of_week
 }
 
 export interface Address {
