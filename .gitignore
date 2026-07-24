@@ -32,3 +32,11 @@ yarn-error.log*
 package-lock.json
 # Sentry Config File
 .env.sentry-build-plugin
+
+# k6 load test reports
+load-tests/reports/
+
+# Playwright artifacts
+playwright-report/
+test-results/
+

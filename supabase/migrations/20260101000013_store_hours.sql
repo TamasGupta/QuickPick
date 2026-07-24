@@ -118,13 +118,22 @@ BEGIN
     RETURN false;
   END IF;
 
-  -- Before opening time
-  IF r.opens_at IS NOT NULL AND local_time < r.opens_at THEN
+  -- Time window evaluation
+  -- 1) Standard same-day window (opens_at < closes_at, e.g. 09:00 to 22:00)
+  IF r.opens_at IS NOT NULL AND r.closes_at IS NOT NULL AND r.opens_at < r.closes_at THEN
+    IF local_time < r.opens_at OR local_time >= r.closes_at THEN
+      RETURN false;
+    END IF;
+  -- 2) Overnight / midnight window (opens_at >= closes_at, e.g. 09:00 to 00:00 Midnight or 18:00 to 02:00)
+  ELSIF r.opens_at IS NOT NULL AND r.closes_at IS NOT NULL AND r.opens_at >= r.closes_at THEN
+    -- Open from opens_at until 23:59:59 OR from 00:00:00 until closes_at
+    IF local_time < r.opens_at AND local_time >= r.closes_at THEN
+      RETURN false;
+    END IF;
+  -- 3) Open-ended bound checks
+  ELSIF r.opens_at IS NOT NULL AND local_time < r.opens_at THEN
     RETURN false;
-  END IF;
-
-  -- At or after closing time
-  IF r.closes_at IS NOT NULL AND local_time >= r.closes_at THEN
+  ELSIF r.closes_at IS NOT NULL AND local_time >= r.closes_at THEN
     RETURN false;
   END IF;
 

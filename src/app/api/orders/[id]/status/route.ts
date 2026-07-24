@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { withApiLogging } from "@/lib/apiLogger";
 import type { OrderStatus } from "@/lib/types";
 
@@ -17,9 +17,20 @@ export const POST = withApiLogging(
   "/api/orders/[id]/status",
   async (req: Request, { params }: { params: { id: string } }) => {
   const supabase = createServerSupabase();
-  const {
+  let {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (!user) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const service = createServiceSupabase();
+      const { data } = await service.auth.getUser(token);
+      user = data.user;
+    }
+  }
+
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const { status } = (await req.json()) as { status: OrderStatus };
