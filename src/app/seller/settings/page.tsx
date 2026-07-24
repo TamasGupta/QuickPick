@@ -114,6 +114,21 @@ export default function SellerSettingsPage() {
   const [schedule, setSchedule] = useState<DayForm[]>(makeDefaultSchedule());
   const [hoursLoaded, setHoursLoaded] = useState(false);
 
+  // "Apply to all days" quick-set inputs
+  const [bulkOpens, setBulkOpens] = useState("");
+  const [bulkCloses, setBulkCloses] = useState("");
+
+  function applyToAllDays() {
+    if (!bulkOpens && !bulkCloses) return;
+    setSchedule((prev) =>
+      prev.map((d) =>
+        d.is_closed
+          ? d // leave explicitly-closed days untouched
+          : { ...d, opens_at: bulkOpens, closes_at: bulkCloses }
+      )
+    );
+  }
+
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) {
@@ -336,6 +351,42 @@ export default function SellerSettingsPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* ── Apply to all days ── */}
+          <div className="rounded-xl border border-dashed border-brand-200 bg-brand-50/40 p-3">
+            <p className="mb-2 text-xs font-semibold text-brand-700">Apply same time to all days</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[10px] text-ink-faint">Opens at</label>
+                <input
+                  type="time"
+                  className="input w-32 text-sm py-1"
+                  value={bulkOpens}
+                  onChange={(e) => setBulkOpens(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[10px] text-ink-faint">Closes at</label>
+                <input
+                  type="time"
+                  className="input w-32 text-sm py-1"
+                  value={bulkCloses}
+                  onChange={(e) => setBulkCloses(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={applyToAllDays}
+                disabled={!bulkOpens && !bulkCloses}
+                className="btn-outline text-xs py-1 px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Apply to all days
+              </button>
+            </div>
+            <p className="mt-1.5 text-[10px] text-ink-faint">
+              Days marked as Closed are not affected. You can still adjust individual days below.
+            </p>
           </div>
 
           {/* Per-day grid */}
