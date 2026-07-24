@@ -43,7 +43,7 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   // the buyer's address has no pinned location, we can't verify distance, so
   // the order is allowed through rather than blocking on missing data.
   const [{ data: seller }, { data: address }] = await Promise.all([
-    service.from("sellers").select("lat, lng").eq("id", seller_id).single(),
+    service.from("sellers").select("lat, lng, timezone").eq("id", seller_id).single(),
     service.from("addresses").select("lat, lng").eq("id", address_id).eq("user_id", user.id).single(),
   ]);
   if (seller?.lat != null && seller?.lng != null && address?.lat != null && address?.lng != null) {
@@ -59,6 +59,17 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
         { status: 400 }
       );
     }
+  }
+
+  // Store-hours gate — authoritative check runs in Postgres so tz math is
+  // correct regardless of the server runtime's local timezone (Vercel = UTC).
+  // A store with no hours configured is treated as always open (RPC returns true).
+  const { data: storeOpen } = await service.rpc("is_store_open", { p_seller_id: seller_id });
+  if (storeOpen === false) {
+    return NextResponse.json(
+      { error: "This store is currently closed. Please check their opening hours and try again." },
+      { status: 400 }
+    );
   }
 
   // Re-price against the DB to prevent tampering.
