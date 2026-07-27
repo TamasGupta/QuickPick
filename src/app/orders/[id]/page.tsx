@@ -54,7 +54,15 @@ export default async function OrderDetailPage({
       <OrderStatusLive
         orderId={o.id}
         orderIdShort={o.id.slice(0, 8)}
-        initial={{ status: o.status, delivery_otp: o.delivery_otp ?? null, rider }}
+        initial={{
+          status: o.status,
+          delivery_otp: o.delivery_otp ?? null,
+          rider,
+          seller_id: o.seller_id,
+          payment_status: o.payment_status,
+          cancel_reason: o.cancel_reason ?? null,
+          items: (items as { id: string; name: string; qty: number; price: number; out_of_stock: boolean; oos_reason: string | null }[]) ?? [],
+        }}
       />
 
       {address && (
@@ -70,10 +78,14 @@ export default async function OrderDetailPage({
       )}
 
       <section className="card divide-y">
-        {(items ?? []).map((it: { id: string; name: string; qty: number; price: number }) => (
+        {(items ?? []).map((it: { id: string; name: string; qty: number; price: number; out_of_stock: boolean }) => (
           <div key={it.id} className="flex justify-between p-3 text-sm">
-            <span>{it.name} × {it.qty}</span>
-            <span className="font-medium">{inr(it.price * it.qty)}</span>
+            <span className={it.out_of_stock ? "text-ink-faint line-through" : ""}>
+              {it.name} × {it.qty}
+            </span>
+            <span className={it.out_of_stock ? "font-medium text-ink-faint line-through" : "font-medium"}>
+              {inr(it.price * it.qty)}
+            </span>
           </div>
         ))}
       </section>

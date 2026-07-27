@@ -66,11 +66,12 @@ function LoginForm() {
       return;
     }
     // Deliberately leave loading=true here: we're navigating away, not
-    // rendering a new interactive view. Clearing it before router.push/
+    // rendering a new interactive view. Clearing it before router.replace/
     // refresh land re-enables "Verify & continue" for a moment, and a
     // second click during that gap fires a whole separate login attempt
     // that races the first one's in-flight navigation.
-    router.push(destinationFor(profile.role));
+    // Use replace() instead of push() to prevent users from going back to login
+    router.replace(destinationFor(profile.role));
     router.refresh();
   }
 
@@ -159,7 +160,8 @@ function LoginForm() {
     // opens a window for a second click to race the in-flight navigation.
     // Reaching this step means the account had no name yet, which only
     // happens for a brand-new buyer signup — always safe to use `next`.
-    router.push(next);
+    // Use replace() instead of push() to prevent users from going back to login
+    router.replace(next);
     router.refresh();
   }
 

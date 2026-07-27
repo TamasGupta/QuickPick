@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireRider } from "@/lib/rider";
 import { withApiLogging } from "@/lib/apiLogger";
 
@@ -16,13 +16,15 @@ export const GET = withApiLogging("/api/rider/ledger", async (_req: Request) => 
     return NextResponse.json({ error: "Riders only" }, { status: 403 });
   }
 
+  const service = createServiceSupabase();
   const [{ data: entries }, { data: delivered }] = await Promise.all([
     supabase
       .from("ledger_entries")
       .select("*")
       .eq("rider_id", user.id)
+      .eq("to_party", "rider")
       .order("created_at", { ascending: false }),
-    supabase.from("orders").select("delivery_fee").eq("rider_id", user.id).eq("status", "delivered"),
+    service.from("orders").select("delivery_fee").eq("rider_id", user.id).eq("status", "delivered"),
   ]);
 
   const lifetimeEarnings = (delivered ?? []).reduce((s, o) => s + Number(o.delivery_fee), 0);

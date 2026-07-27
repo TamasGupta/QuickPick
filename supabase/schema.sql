@@ -20,7 +20,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
-  create type order_status as enum ('placed', 'accepted', 'packed', 'out_for_delivery', 'delivered', 'cancelled');
+  create type order_status as enum ('placed', 'accepted', 'packed', 'out_for_delivery', 'delivered', 'cancelled', 'action_required');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -189,6 +189,9 @@ create table if not exists orders (
   razorpay_payment_id text,
   rider_id uuid references profiles(id) on delete set null,
   delivery_otp text,
+  -- Seller's note when fully cancelling (see migration 013). Per-item stock
+  -- issues live on order_items instead (out_of_stock/oos_reason).
+  cancel_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -203,7 +206,11 @@ create table if not exists order_items (
   product_id uuid references products(id) on delete set null,
   name text not null,
   price numeric(10,2) not null,
-  qty integer not null check (qty > 0)
+  qty integer not null check (qty > 0),
+  -- Seller-reported stock issue on this specific item (migration 013) —
+  -- flips the parent order to 'action_required' until the buyer resolves it.
+  out_of_stock boolean not null default false,
+  oos_reason text
 );
 create index if not exists idx_order_items_order on order_items(order_id);
 

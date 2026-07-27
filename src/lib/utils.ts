@@ -97,4 +97,5 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   out_for_delivery: "Out for Delivery",
   delivered: "Delivered",
   cancelled: "Cancelled",
+  action_required: "Action needed",
 };

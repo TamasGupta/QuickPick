@@ -5,7 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import { SellerOrderCard } from "@/components/SellerOrderCard";
 import type { Order } from "@/lib/types";
 
-type OrderItem = { id: string; order_id: string; name: string; qty: number; price: number };
+type OrderItem = {
+  id: string;
+  order_id: string;
+  name: string;
+  qty: number;
+  price: number;
+  out_of_stock: boolean;
+};
 
 // Polls the seller's own orders (RLS already scopes this client-side query to
 // the owning seller) and updates the list in place — no navigation, so no

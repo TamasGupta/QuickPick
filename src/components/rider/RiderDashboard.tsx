@@ -343,7 +343,7 @@ function RiderOrderCard({
               <Navigation className="h-4 w-4" /> Navigate to customer
             </a>
             {o.buyer_phone && (
-              <a href={`tel:${o.buyer_phone}`} className="btn-outline flex-1">
+              <a href={`tel:${o.buyer_phone.replace(/^91/, "")}`} className="btn-outline flex-1">
                 <Phone className="h-4 w-4" /> Call
               </a>
             )}

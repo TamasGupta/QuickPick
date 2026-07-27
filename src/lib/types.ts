@@ -8,7 +8,10 @@ export type OrderStatus =
   | "packed"
   | "out_for_delivery"
   | "delivered"
-  | "cancelled";
+  | "cancelled"
+  // Seller flagged one or more items out of stock — paused, waiting on the
+  // buyer to continue (dropping those items) or cancel. See migration 013.
+  | "action_required";
 export type PaymentStatus = "pending" | "paid" | "failed" | "cod";
 
 export interface Category {
@@ -96,7 +99,19 @@ export interface Order {
   total: number;
   delivery_slot: string | null;
   delivery_otp: string | null;
+  cancel_reason: string | null;
   created_at: string;
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string | null;
+  name: string;
+  price: number;
+  qty: number;
+  out_of_stock: boolean;
+  oos_reason: string | null;
 }
 
 // Canonical shape a parsed upload row is normalized into.

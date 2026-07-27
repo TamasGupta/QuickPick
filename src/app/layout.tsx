@@ -7,6 +7,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { PageTransition } from "@/components/PageTransition";
 import { DynamicIsland } from "@/components/DynamicIsland";
 import { PwaInstallListener } from "@/components/PwaInstallListener";
+import { OfflineScreen } from "@/components/OfflineScreen";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -66,6 +67,7 @@ export default function RootLayout({
         <NextTopLoader color="#7c3aed" height={3} showSpinner={false} />
         <PwaInstallListener />
         <DynamicIsland />
+        <OfflineScreen />
         <Suspense fallback={<div className="h-16 border-b border-gray-100 bg-white" />}>
           <Header />
         </Suspense>

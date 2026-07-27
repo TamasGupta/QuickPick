@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Zap,
   BadgePercent,
@@ -43,6 +44,29 @@ export default async function HomePage({
   searchParams: { q?: string; cat?: string };
 }) {
   const supabase = createServerSupabase();
+
+  // Role-based access control: redirect non-buyers to their dashboards
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.role === "seller") {
+      redirect("/seller");
+    }
+    if (profile?.role === "rider") {
+      redirect("/rider");
+    }
+    if (profile?.role === "admin") {
+      redirect("/admin");
+    }
+  }
 
   const { data: categories } = await supabase
     .from("categories")

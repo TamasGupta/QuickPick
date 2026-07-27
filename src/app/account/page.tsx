@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Phone, User as UserIcon, Check, Download, Info, ShieldCheck, FileText, RefreshCcw, Mail, ChevronRight } from "lucide-react";
+import { Phone, User as UserIcon, Check, Download, Info, ShieldCheck, FileText, RefreshCcw, Mail, ChevronRight, LogOut, Package, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SkelLine } from "@/components/skeletons";
+import { SavedAddresses } from "@/components/SavedAddresses";
 import { notify } from "@/store/notify";
 import { usePwaInstall } from "@/store/pwaInstall";
 
@@ -78,97 +79,155 @@ export default function AccountPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-md space-y-4">
-        <SkelLine className="h-6 w-32" />
-        <div className="card space-y-3 p-4">
-          <SkelLine className="h-4 w-36" />
-          <SkelLine className="h-5 w-16 rounded-full" />
-          <SkelLine className="h-9 w-full rounded-xl" />
+        <SkelLine className="h-8 w-40" />
+        <div className="card space-y-4 p-5">
+          <SkelLine className="h-12 w-12 rounded-full" />
+          <SkelLine className="h-4 w-48" />
+          <SkelLine className="h-3 w-32" />
+          <SkelLine className="h-10 w-full rounded-lg" />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <SkelLine className="h-10 rounded-xl" />
-          <SkelLine className="h-10 rounded-xl" />
+        <div className="space-y-2">
+          <SkelLine className="h-10 w-full rounded-lg" />
+          <SkelLine className="h-10 w-full rounded-lg" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-md animate-fade-in space-y-4">
-      <h1 className="text-xl font-extrabold">My account</h1>
-
-      <div className="card space-y-3 p-4">
-        <div className="flex items-center gap-2 text-sm">
-          <Phone className="h-4 w-4 text-ink-faint" />
-          <span className="text-ink-soft">{phone ? `+${phone}` : "No phone on file"}</span>
-        </div>
+    <div className="mx-auto max-w-md animate-fade-in space-y-4 pb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-ink">Account</h1>
         {role !== "buyer" && (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="badge bg-brand-50 text-brand-700 uppercase">{role}</span>
-          </div>
+          <span className="badge bg-brand-50 text-brand-700 uppercase text-xs font-semibold px-2.5 py-1">{role}</span>
         )}
+      </div>
 
-        <div className="flex items-center gap-2 pt-1">
-          <UserIcon className="h-4 w-4 shrink-0 text-ink-faint" />
+      {/* Profile Section */}
+      <div className="card space-y-4 p-5">
+        {/* Avatar & Basic Info */}
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600">
+            <UserIcon className="h-7 w-7 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-ink truncate">{savedName || "Not set"}</p>
+            <p className="text-xs text-ink-soft mt-1 flex items-center gap-1">
+              <Phone className="h-3 w-3" />
+              {phone ? `+${phone}` : "No phone on file"}
+            </p>
+          </div>
+        </div>
+
+        {/* Edit Name */}
+        <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
           <input
-            className="input"
-            placeholder="Your name"
+            className="input flex-1 text-sm"
+            placeholder="Update your name"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button
-            onClick={saveName}
-            disabled={saving || !name.trim() || name.trim() === savedName}
-            className="btn-primary shrink-0 px-3"
-          >
-            {saving ? "…" : <Check className="h-4 w-4" />}
-          </button>
+          {name.trim() !== savedName && name.trim() && (
+            <button
+              onClick={saveName}
+              disabled={saving}
+              className="text-brand-600 hover:text-brand-700 font-medium text-sm transition"
+            >
+              {saving ? "…" : "Save"}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className={`grid gap-3 ${role === "buyer" ? "grid-cols-1" : "grid-cols-2"}`}>
-        <Link href="/orders" className="btn-outline">My orders</Link>
-        {role === "seller" && <Link href="/seller" className="btn-outline">Seller portal</Link>}
-        {role === "rider" && <Link href="/rider" className="btn-outline">Delivery dashboard</Link>}
-        {role === "admin" && <Link href="/admin" className="btn-outline col-span-2">Admin console</Link>}
+      {/* Quick Actions Section */}
+      <div className="space-y-2">
+        <p className="px-1 text-xs font-semibold text-ink-faint uppercase tracking-wide">Quick Actions</p>
+        <div className={`grid gap-3 ${role === "buyer" ? "grid-cols-1" : "grid-cols-2"}`}>
+          <Link href="/orders" className="card flex flex-col items-center gap-2 p-4 text-center transition hover:bg-gray-50">
+            <Package className="h-6 w-6 text-brand-600" />
+            <span className="text-sm font-medium text-ink">My Orders</span>
+          </Link>
+          {role === "seller" && (
+            <Link href="/seller" className="card flex flex-col items-center gap-2 p-4 text-center transition hover:bg-gray-50">
+              <span className="text-xl">🏪</span>
+              <span className="text-sm font-medium text-ink">Seller Portal</span>
+            </Link>
+          )}
+          {role === "rider" && (
+            <Link href="/rider" className="card flex flex-col items-center gap-2 p-4 text-center transition hover:bg-gray-50">
+              <span className="text-xl">🚴</span>
+              <span className="text-sm font-medium text-ink">Deliveries</span>
+            </Link>
+          )}
+          {role === "admin" && (
+            <Link href="/admin" className="card flex flex-col items-center gap-2 p-4 text-center transition hover:bg-gray-50 col-span-2">
+              <span className="text-xl">⚙️</span>
+              <span className="text-sm font-medium text-ink">Admin Console</span>
+            </Link>
+          )}
+        </div>
       </div>
 
+      {/* Saved Addresses Section */}
+      {role === "buyer" && (
+        <>
+          <div className="px-1">
+            <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide">Delivery</p>
+          </div>
+          <SavedAddresses />
+        </>
+      )}
+
+      {/* App Installation */}
       {!installed && deferredEvent && (
-        <button className="btn-outline flex w-full items-center justify-center gap-2" onClick={installApp}>
+        <button className="btn-primary flex w-full items-center justify-center gap-2 py-3" onClick={installApp}>
           <Download className="h-4 w-4" />
-          Install app
+          Install App
         </button>
       )}
       {!installed && !deferredEvent && isIOS && (
-        <p className="text-center text-xs text-ink-soft">
-          To install: tap the Share icon, then &ldquo;Add to Home Screen&rdquo;.
-        </p>
+        <div className="card bg-blue-50 border border-blue-200 p-4">
+          <p className="text-xs text-blue-900">
+            To install GrabOn: tap the <strong>Share</strong> icon, then &ldquo;Add to Home Screen&rdquo;.
+          </p>
+        </div>
       )}
 
-      <button className="btn-outline w-full text-red-600" onClick={logout}>
+      {/* Support & Info Section */}
+      <div className="space-y-2">
+        <p className="px-1 text-xs font-semibold text-ink-faint uppercase tracking-wide">Support & Info</p>
+        <div className="card divide-y divide-gray-100 overflow-hidden">
+          {[
+            { href: "/about", label: "About GrabOn", icon: Info },
+            { href: "/contact", label: "Contact Us", icon: Mail },
+            { href: "/refund-policy", label: "Refund & Cancellation", icon: RefreshCcw },
+            { href: "/privacy", label: "Privacy Policy", icon: ShieldCheck },
+            { href: "/terms", label: "Terms & Conditions", icon: FileText },
+          ].map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink transition hover:bg-gray-50 active:bg-gray-100"
+            >
+              <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
+              <span className="flex-1">{label}</span>
+              <ChevronRight className="h-4 w-4 text-ink-faint" />
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <button
+        className="btn-outline w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 py-3 font-medium"
+        onClick={logout}
+      >
+        <LogOut className="h-4 w-4" />
         Log out
       </button>
 
-      {/* App info links */}
-      <div className="card divide-y divide-gray-100 overflow-hidden">
-        {[
-          { href: "/about", label: "About GrabOn", icon: Info },
-          { href: "/contact", label: "Contact Us", icon: Mail },
-          { href: "/refund-policy", label: "Refund & Cancellation Policy", icon: RefreshCcw },
-          { href: "/privacy", label: "Privacy Policy", icon: ShieldCheck },
-          { href: "/terms", label: "Terms & Conditions", icon: FileText },
-        ].map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink transition hover:bg-gray-50 active:bg-gray-100"
-          >
-            <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
-            <span className="flex-1">{label}</span>
-            <ChevronRight className="h-4 w-4 text-ink-faint" />
-          </Link>
-        ))}
-      </div>
-
+      {/* Footer */}
       <p className="pb-2 text-center text-[11px] text-ink-faint">
         GrabOn · Agra, Uttar Pradesh
       </p>

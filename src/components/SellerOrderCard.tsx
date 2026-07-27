@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TriangleAlert } from "lucide-react";
 import { inr, ORDER_STATUS_LABELS, formatIST } from "@/lib/utils";
 import { notify } from "@/store/notify";
+import { ReportOrderIssueModal } from "@/components/ReportOrderIssueModal";
 import type { OrderStatus } from "@/lib/types";
 
 // Seller drives the order up to "packed"; a delivery partner then picks it up
@@ -14,6 +16,7 @@ const NEXT: Record<string, { status: OrderStatus; label: string } | null> = {
   out_for_delivery: null,
   delivered: null,
   cancelled: null,
+  action_required: null,
 };
 
 const HANDOFF_NOTE: Record<string, string> = {
@@ -21,6 +24,9 @@ const HANDOFF_NOTE: Record<string, string> = {
   out_for_delivery: "Picked up — out for delivery",
   delivered: "Delivered to the customer",
 };
+
+// Seller can report a stock issue up to the point a rider has it.
+const REPORTABLE: OrderStatus[] = ["placed", "accepted", "packed"];
 
 interface Props {
   order: {
@@ -31,12 +37,13 @@ interface Props {
     created_at: string;
     delivery_slot: string | null;
   };
-  items: { id: string; name: string; qty: number; price: number }[];
+  items: { id: string; name: string; qty: number; price: number; out_of_stock?: boolean }[];
 }
 
 export function SellerOrderCard({ order, items }: Props) {
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [busy, setBusy] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
   const next = NEXT[status];
 
   // Local state gives an instant optimistic update on click; this resyncs it
@@ -78,8 +85,10 @@ export function SellerOrderCard({ order, items }: Props) {
       <ul className="mt-3 space-y-1 text-sm">
         {items.map((it) => (
           <li key={it.id} className="flex justify-between">
-            <span>{it.name} × {it.qty}</span>
-            <span>{inr(it.price * it.qty)}</span>
+            <span className={it.out_of_stock ? "text-ink-faint line-through" : ""}>
+              {it.name} × {it.qty}
+            </span>
+            <span className={it.out_of_stock ? "text-ink-faint line-through" : ""}>{inr(it.price * it.qty)}</span>
           </li>
         ))}
       </ul>
@@ -89,6 +98,12 @@ export function SellerOrderCard({ order, items }: Props) {
           {HANDOFF_NOTE[status]}
         </p>
       )}
+      {status === "action_required" && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Waiting for the buyer to respond to the stock issue you reported.
+        </p>
+      )}
 
       <div className="mt-3 flex items-center justify-between border-t pt-3">
         <span className="text-sm">
@@ -96,13 +111,13 @@ export function SellerOrderCard({ order, items }: Props) {
           <span className="uppercase text-gray-400">· {order.payment_status}</span>
         </span>
         <div className="flex gap-2">
-          {(status === "placed" || status === "accepted") && (
+          {REPORTABLE.includes(status) && (
             <button
               className="btn-outline py-1 text-red-600"
               disabled={busy}
-              onClick={() => advance("cancelled")}
+              onClick={() => setShowIssueModal(true)}
             >
-              Cancel
+              Report issue
             </button>
           )}
           {next && (
@@ -112,6 +127,18 @@ export function SellerOrderCard({ order, items }: Props) {
           )}
         </div>
       </div>
+
+      {showIssueModal && (
+        <ReportOrderIssueModal
+          orderId={order.id}
+          items={items}
+          onClose={() => setShowIssueModal(false)}
+          onDone={(newStatus) => {
+            setStatus(newStatus);
+            setShowIssueModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }

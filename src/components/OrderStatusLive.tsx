@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ShieldCheck, Bike, Phone } from "lucide-react";
 import { OrderTimeline } from "@/components/OrderTimeline";
+import { OrderIssueResolver } from "@/components/OrderIssueResolver";
 import { LottieIcon } from "@/components/LottieIcon";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 import type { OrderStatus } from "@/lib/types";
@@ -12,10 +13,23 @@ interface Rider {
   phone: string | null;
 }
 
+interface Item {
+  id: string;
+  name: string;
+  qty: number;
+  price: number;
+  out_of_stock: boolean;
+  oos_reason: string | null;
+}
+
 interface LiveData {
   status: OrderStatus;
   delivery_otp: string | null;
   rider: Rider | null;
+  seller_id: string;
+  payment_status: string;
+  cancel_reason: string | null;
+  items: Item[];
 }
 
 // Polls /api/orders/:id/live in the background and re-renders just the
@@ -52,9 +66,9 @@ export function OrderStatusLive({
     };
   }, [orderId]);
 
-  const { status, delivery_otp, rider } = data;
+  const { status, delivery_otp, rider, seller_id, payment_status, cancel_reason, items } = data;
   const active = status !== "delivered" && status !== "cancelled";
-  const showOtp = active && delivery_otp && status !== "placed";
+  const showOtp = active && delivery_otp && status !== "placed" && status !== "action_required";
 
   return (
     <>
@@ -62,6 +76,18 @@ export function OrderStatusLive({
         <h1 className="text-xl font-extrabold">Order #{orderIdShort}</h1>
         <span className="badge bg-brand-50 text-brand-700">{ORDER_STATUS_LABELS[status]}</span>
       </div>
+
+      {status === "cancelled" && cancel_reason && (
+        <section className="card flex items-start gap-2 border-2 border-dashed border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-700">
+            <b>Cancelled by the store:</b> {cancel_reason}
+          </p>
+        </section>
+      )}
+
+      {status === "action_required" && (
+        <OrderIssueResolver orderId={orderId} sellerId={seller_id} paymentStatus={payment_status} items={items} />
+      )}
 
       {showOtp && (
         <section className="flex items-center gap-4 rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 p-4">
@@ -100,10 +126,12 @@ export function OrderStatusLive({
         </section>
       )}
 
-      <section className="card p-4">
-        <h2 className="mb-3 font-bold">Tracking</h2>
-        <OrderTimeline status={status} />
-      </section>
+      {status !== "action_required" && (
+        <section className="card p-4">
+          <h2 className="mb-3 font-bold">Tracking</h2>
+          <OrderTimeline status={status} />
+        </section>
+      )}
     </>
   );
 }
