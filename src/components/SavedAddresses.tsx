@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Plus, Edit2, Trash2, MapPin, Check, Map } from "lucide-react";
 import type { Address } from "@/lib/types";
 import type { PickedLocation } from "./LocationPicker";
-import { LocationPicker } from "./LocationPicker";
 import { notify } from "@/store/notify";
 import { SkelLine } from "./skeletons";
+
+const LocationPicker = dynamic(() => import("./LocationPicker").then((m) => m.LocationPicker), {
+  ssr: false,
+  loading: () => <div className="flex h-64 items-center justify-center rounded-xl bg-gray-50 text-sm text-ink-faint">Loading map…</div>,
+});
 
 interface AddressFormData {
   label: string;
