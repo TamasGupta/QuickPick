@@ -66,10 +66,10 @@ export const POST = withApiLogging(
     if (!body.otp || body.otp.trim() !== order.delivery_otp) {
       return NextResponse.json({ error: "Incorrect delivery OTP" }, { status: 422 });
     }
-    // Cash collected on delivery -> mark COD orders paid.
+    // Cash collected on delivery — payment_status stays "cod" so riders see
+    // the payment method in completed orders. The "delivered" status indicates completion.
     const isCod = order.payment_status === "cod";
     const patch: Record<string, unknown> = { status: "delivered", updated_at: now() };
-    if (isCod) patch.payment_status = "paid";
     const { error } = await service.from("orders").update(patch).eq("id", orderId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

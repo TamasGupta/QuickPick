@@ -21,9 +21,8 @@ const markerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-// Default map center when we have no GPS/existing pin to start from —
-// Bengaluru, matching the demo store's city. Just a starting viewport; the
-// buyer still has to place/confirm a real pin.
+// Fallback center if geolocation fails or is denied
+// (user can still search or place pin manually)
 const FALLBACK_CENTER: [number, number] = [12.9716, 77.5946];
 
 export interface PickedLocation {
@@ -107,22 +106,38 @@ export function LocationPicker({
     };
   }, [position]);
 
-  // Center on the buyer's real location on first load if no pin was already
-  // saved — a cold Bengaluru default isn't useful if they're elsewhere.
+  // Center on the buyer's real location on first load if no pin was already saved
   useEffect(() => {
     if (initialLat != null && initialLng != null) return;
     if (!navigator.geolocation) return;
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setPosition(p);
         setFlyTarget(p);
       },
-      () => {
-        // No permission / unavailable — the fallback center stays, buyer
-        // can still drag the pin or search manually.
+      (error) => {
+        // If permission denied, try to get it via permissions API
+        if (error.code === error.PERMISSION_DENIED && navigator.permissions) {
+          navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+            if (result.state === 'prompt') {
+              // Permission hasn't been asked yet, request it again
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                  setPosition(p);
+                  setFlyTarget(p);
+                },
+                () => {
+                  // Still failed - fallback center stays
+                }
+              );
+            }
+          });
+        }
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
