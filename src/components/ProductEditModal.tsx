@@ -133,95 +133,135 @@ export function ProductEditModal({
                 <span className="text-2xl opacity-50">🛍️</span>
               )}
             </div>
-            <label className="btn-outline cursor-pointer text-sm">
-              {uploading ? (
-                <Spinner className="h-4 w-4 border-brand-200 border-t-brand-600" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-              {uploading ? "Uploading…" : "Upload image"}
-              <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
-            </label>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">Product Image</label>
+              <label className="btn-outline cursor-pointer text-sm">
+                {uploading ? (
+                  <Spinner className="h-4 w-4 border-brand-200 border-t-brand-600" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {uploading ? "Uploading…" : "Upload image"}
+                <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
+              </label>
+            </div>
           </div>
 
-          <input
-            className="input"
-            placeholder="Product name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">Product Name *</label>
             <input
               className="input"
-              placeholder="Brand"
-              value={form.brand}
-              onChange={(e) => setForm({ ...form, brand: e.target.value })}
-            />
-            <select
-              className="input"
-              value={form.category_id}
-              onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-            >
-              <option value="">No category</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <textarea
-            className="input"
-            placeholder="Description"
-            rows={2}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="input"
-              type="number"
-              placeholder="Price"
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-            />
-            <input
-              className="input"
-              type="number"
-              placeholder="MRP (optional)"
-              value={form.mrp}
-              onChange={(e) => setForm({ ...form, mrp: e.target.value })}
+              placeholder="e.g. Taaza Fresh Milk"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <input
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">Brand</label>
+              <input
+                className="input"
+                placeholder="e.g. Amul"
+                value={form.brand}
+                onChange={(e) => setForm({ ...form, brand: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">Category</label>
+              <select
+                className="input"
+                value={form.category_id}
+                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+              >
+                <option value="">No category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">Description</label>
+            <textarea
               className="input"
-              placeholder="Unit (e.g. 500 ml)"
-              value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="SKU"
-              value={form.sku}
-              onChange={(e) => setForm({ ...form, sku: e.target.value })}
-            />
-            <input
-              className="input"
-              type="number"
-              placeholder="Stock"
-              value={form.stock}
-              onChange={(e) => setForm({ ...form, stock: e.target.value })}
+              placeholder="Brief description of the product"
+              rows={2}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-ink-soft">
-            <input
-              type="checkbox"
-              checked={form.is_active}
-              onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-            />
-            Visible to buyers
-          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">Selling Price (₹) *</label>
+              <input
+                className="input"
+                type="number"
+                placeholder="0.00"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">
+                MRP (₹) <span className="text-ink-faint font-normal">(Optional)</span>
+              </label>
+              <input
+                className="input"
+                type="number"
+                placeholder="0.00"
+                value={form.mrp}
+                onChange={(e) => setForm({ ...form, mrp: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">Unit / Pack</label>
+              <input
+                className="input"
+                placeholder="e.g. 500 ml"
+                value={form.unit}
+                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">SKU Code</label>
+              <input
+                className="input"
+                placeholder="e.g. AML-500"
+                value={form.sku}
+                onChange={(e) => setForm({ ...form, sku: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-ink-soft">Stock Qty *</label>
+              <input
+                className="input"
+                type="number"
+                placeholder="0"
+                value={form.stock}
+                onChange={(e) => setForm({ ...form, stock: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="pt-1">
+            <label className="flex items-center gap-2 text-sm font-medium text-ink-soft cursor-pointer">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                checked={form.is_active}
+                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+              />
+              Visible to buyers on store
+            </label>
+          </div>
         </div>
 
         <div className="mt-4 flex gap-2">
