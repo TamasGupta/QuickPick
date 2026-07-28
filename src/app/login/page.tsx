@@ -84,7 +84,7 @@ function LoginForm() {
         // saved (see the middleware/mount-effect guard above for the
         // fallback case where this field was left blank).
         await supabase.from("profiles").update({ full_name: typedName }).eq("id", userId);
-        router.replace(destinationFor(profile.role));
+        router.replace(destinationFor(profile?.role));
         router.refresh();
         return;
       }
