@@ -110,12 +110,31 @@ function LoginForm() {
       notify.error("Enter a valid 10-digit mobile number.");
       return;
     }
+
+    setLoading(true);
+
+    try {
+      const checkRes = await fetch("/api/auth/check-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: e164() }),
+      });
+      const checkData = await checkRes.json();
+
+      if (checkRes.ok && !checkData.exists) {
+        setLoading(false);
+        notify.error("No account found with this mobile number. Please register first.");
+        return;
+      }
+    } catch {
+      // If check service fails, continue gracefully
+    }
+
     if (STATIC_MODE) {
-      // No real SMS goes out in static mode — just move to the code step.
+      setLoading(false);
       setStep("otp");
       return;
     }
-    setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({ phone: e164() });
     setLoading(false);
     if (error) {
