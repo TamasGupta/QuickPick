@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Phone, ShieldCheck, ArrowLeft, User as UserIcon, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/store/notify";
@@ -109,12 +110,31 @@ function LoginForm() {
       notify.error("Enter a valid 10-digit mobile number.");
       return;
     }
+
+    setLoading(true);
+
+    try {
+      const checkRes = await fetch("/api/auth/check-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: e164() }),
+      });
+      const checkData = await checkRes.json();
+
+      if (checkRes.ok && !checkData.exists) {
+        setLoading(false);
+        notify.error("No account found with this mobile number. Please register first.");
+        return;
+      }
+    } catch {
+      // If check service fails, continue gracefully
+    }
+
     if (STATIC_MODE) {
-      // No real SMS goes out in static mode — just move to the code step.
+      setLoading(false);
       setStep("otp");
       return;
     }
-    setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({ phone: e164() });
     setLoading(false);
     if (error) {
@@ -207,20 +227,12 @@ function LoginForm() {
             <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
               <Phone className="h-6 w-6" />
             </span>
-            <h1 className="text-xl font-extrabold text-ink">Login or sign up</h1>
+            <h1 className="text-xl font-extrabold text-ink">Log in</h1>
             <p className="mt-1 text-sm text-ink-faint">
               {STATIC_MODE ? "Enter your mobile number to continue." : "We'll text you a one-time code."}
             </p>
 
             <form onSubmit={sendOtp} className="mt-4 space-y-3">
-              <input
-                type="text"
-                autoFocus
-                placeholder="Your name"
-                className="input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
               <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100">
                 <span className="flex items-center bg-gray-50 px-3 text-sm font-semibold text-ink-soft">
                   +91
@@ -229,16 +241,25 @@ function LoginForm() {
                   type="tel"
                   inputMode="numeric"
                   required
+                  autoFocus
                   placeholder="98765 43210"
                   className="w-full px-3 py-2.5 text-sm outline-none"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 />
               </div>
-              <p className="text-xs text-ink-faint">Already have an account? You can leave the name blank.</p>
               <button className="btn-primary w-full py-3" disabled={loading}>
                 {loading ? "Sending…" : STATIC_MODE ? "Continue" : "Send OTP"}
               </button>
+              <div className="pt-2 text-center text-xs text-ink-soft">
+                New to GrabOn?{" "}
+                <Link
+                  href={`/register${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}
+                  className="font-semibold text-brand-600 hover:underline"
+                >
+                  Create an account
+                </Link>
+              </div>
             </form>
           </>
         )}

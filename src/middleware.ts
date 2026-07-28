@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
   // instead of silently browsing (and placing orders) as "Not set". Scoped to
   // `user` only, so anonymous browsing never pays for the extra query.
   const pathname = request.nextUrl.pathname;
-  if (user && pathname !== "/login" && !pathname.startsWith("/api")) {
+  if (user && pathname !== "/login" && pathname !== "/register" && !pathname.startsWith("/api")) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("full_name, role")
