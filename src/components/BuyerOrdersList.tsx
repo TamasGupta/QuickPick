@@ -6,16 +6,18 @@ import { createClient } from "@/lib/supabase/client";
 import { inr, ORDER_STATUS_LABELS, formatIST } from "@/lib/utils";
 import type { Order } from "@/lib/types";
 
-// Polls the buyer's own orders (RLS already scopes this client-side query to
-// buyer_id = auth.uid()) and updates the list in place — no navigation, so no
-// loading.tsx flash between polls, unlike a router.refresh()-driven approach.
+// Subscribes to Realtime changes on the buyer's own orders (RLS already
+// scopes this client-side query to buyer_id = auth.uid()) and updates the
+// list in place — no navigation, so no loading.tsx flash, and no polling:
+// the refetch only runs when Postgres actually reports a change on a row
+// belonging to this buyer.
 export function BuyerOrdersList({ userId, initialOrders }: { userId: string; initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
 
   useEffect(() => {
     const supabase = createClient();
     let alive = true;
-    async function poll() {
+    async function refetch() {
       const { data } = await supabase
         .from("orders")
         .select("*")
@@ -23,10 +25,19 @@ export function BuyerOrdersList({ userId, initialOrders }: { userId: string; ini
         .order("created_at", { ascending: false });
       if (alive && data) setOrders(data as Order[]);
     }
-    const id = setInterval(poll, 8000);
+
+    const channel = supabase
+      .channel(`buyer-orders-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `buyer_id=eq.${userId}` },
+        refetch
+      )
+      .subscribe();
+
     return () => {
       alive = false;
-      clearInterval(id);
+      supabase.removeChannel(channel);
     };
   }, [userId]);
 

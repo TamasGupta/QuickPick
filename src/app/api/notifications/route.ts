@@ -3,9 +3,15 @@ import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/serv
 import { withApiLogging } from "@/lib/apiLogger";
 
 // GET /api/notifications — badge counts for the current user, by context.
-//   buyerActive    -> buyer's in-progress orders
-//   sellerNew      -> new orders awaiting the seller
-//   riderAvailable -> unclaimed packed orders (for riders)
+//   sellerNew      -> new orders awaiting the seller (only active consumer — SellerNav)
+//
+// buyerActive and riderAvailable used to be computed here too, but both are
+// dead: BottomNav now gets its buyer badge from its own Realtime subscription
+// (see useBuyerActiveCount in BottomNav.tsx), and nothing has ever consumed
+// riderAvailable — RiderDashboard has always polled /api/rider/orders?scope=
+// available for that instead. Left commented rather than deleted in case a
+// consumer needs one of them again; until then, computing them here would
+// just be two extra DB queries on every SellerNav poll for data nobody reads.
 export const GET = withApiLogging("/api/notifications", async (_req: Request) => {
   const supabase = createServerSupabase();
   const {
@@ -15,20 +21,22 @@ export const GET = withApiLogging("/api/notifications", async (_req: Request) =>
 
   const service = createServiceSupabase();
 
-  const [{ data: profile }, { data: seller }] = await Promise.all([
-    supabase.from("profiles").select("role").eq("id", user.id).single(),
-    supabase.from("sellers").select("id").eq("owner_id", user.id).maybeSingle(),
-  ]);
+  const { data: seller } = await supabase
+    .from("sellers")
+    .select("id")
+    .eq("owner_id", user.id)
+    .maybeSingle();
 
-  // Buyer: active (not delivered/cancelled) orders.
-  const buyerActive =
-    (
-      await supabase
-        .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("buyer_id", user.id)
-        .not("status", "in", "(delivered,cancelled)")
-    ).count ?? 0;
+  // // Buyer: active (not delivered/cancelled) orders. Unused — see comment above.
+  // const buyerActive =
+  //   (
+  //     await supabase
+  //       .from("orders")
+  //       .select("id", { count: "exact", head: true })
+  //       .eq("buyer_id", user.id)
+  //       .not("status", "in", "(delivered,cancelled)")
+  //   ).count ?? 0;
+  const buyerActive = 0;
 
   // Seller: brand-new orders needing action (exclude unpaid online-payment
   // attempts — those aren't real orders until payment completes).
@@ -45,18 +53,19 @@ export const GET = withApiLogging("/api/notifications", async (_req: Request) =>
       ).count ?? 0;
   }
 
-  // Rider: packed & unclaimed jobs.
-  let riderAvailable = 0;
-  if (profile?.role === "rider") {
-    riderAvailable =
-      (
-        await service
-          .from("orders")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "packed")
-          .is("rider_id", null)
-      ).count ?? 0;
-  }
+  // // Rider: packed & unclaimed jobs. Unused — see comment above.
+  // let riderAvailable = 0;
+  // if (profile?.role === "rider") {
+  //   riderAvailable =
+  //     (
+  //       await service
+  //         .from("orders")
+  //         .select("id", { count: "exact", head: true })
+  //         .eq("status", "packed")
+  //         .is("rider_id", null)
+  //     ).count ?? 0;
+  // }
+  const riderAvailable = 0;
 
   return NextResponse.json({ buyerActive, sellerNew, riderAvailable });
 });

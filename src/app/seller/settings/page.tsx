@@ -150,12 +150,16 @@ export default function SellerSettingsPage() {
   const [dayErrors, setDayErrors] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) {
+    // getSession() reads the cached session locally — no network round-trip,
+    // unlike getUser(). Client-side UX gate only; the actual RLS policy on
+    // `sellers` already scopes this query to owner_id = auth.uid() regardless.
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      if (!user) {
         router.push("/login");
         return;
       }
-      const { data: s } = await supabase.from("sellers").select("*").eq("owner_id", data.user.id).maybeSingle();
+      const { data: s } = await supabase.from("sellers").select("*").eq("owner_id", user.id).maybeSingle();
       if (s) {
         const seller = s as Seller;
         setSeller(seller);

@@ -25,16 +25,20 @@ export default function AccountPage() {
   const isIOS = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) {
+    // getSession() reads the cached session locally — no network round-trip,
+    // unlike getUser(). The redirect below is a client-side UX convenience;
+    // actual access control is middleware/RLS-enforced regardless.
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      if (!user) {
         router.push("/login");
         return;
       }
-      setPhone(data.user.phone ?? null);
+      setPhone(user.phone ?? null);
       const { data: p } = await supabase
         .from("profiles")
         .select("role, full_name")
-        .eq("id", data.user.id)
+        .eq("id", user.id)
         .single();
       if (p) {
         setRole(p.role);
@@ -48,8 +52,9 @@ export default function AccountPage() {
   async function saveName() {
     setSaving(true);
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (user) {
       const { error } = await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", user.id);
       if (error) {

@@ -154,12 +154,17 @@ export default function CheckoutPage() {
       s.src = "https://checkout.razorpay.com/v1/checkout.js";
       document.body.appendChild(s);
     }
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) {
+    // getSession() reads the cached session locally — no network round-trip,
+    // unlike getUser(). The redirect below is a client-side UX convenience;
+    // the actual order-creation authorization happens server-side in
+    // /api/orders, which independently verifies the session.
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      if (!user) {
         router.push("/login");
         return;
       }
-      setUserId(data.user.id);
+      setUserId(user.id);
       const { data: addr } = await supabase
         .from("addresses")
         .select("*")

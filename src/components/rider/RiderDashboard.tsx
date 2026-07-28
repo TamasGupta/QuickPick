@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
+import { createClient } from "@/lib/supabase/client";
 import { inr, formatIST } from "@/lib/utils";
 import { notify } from "@/store/notify";
 import type { RiderOrder } from "@/lib/rider";
@@ -61,25 +62,48 @@ export function RiderDashboard({ name }: { name: string }) {
     load(tab);
   }, [tab, load]);
 
+  // Realtime-driven, not polled: migration 017 added a scoped RLS policy
+  // (packed + unclaimed + caller is a rider) so riders can now see this
+  // slice of `orders` directly, exposing exactly what the service-role
+  // /api/rider/orders?scope=available route already returned. Subscribes
+  // once (not per-tab) and reads the current tab via a ref so switching
+  // tabs doesn't tear down and resubscribe the channel.
+  //
+  // One gap: RLS decides whether to deliver an UPDATE event by re-checking
+  // the policy against the NEW row, so a rider watching this list gets no
+  // signal when ANOTHER rider claims an order out from under them (the row
+  // simply stops matching, it isn't reported as a removal). Fixing that
+  // fully needs REPLICA IDENTITY FULL on `orders`, which we're not turning
+  // on solely for this (bigger WAL cost for every column on every order
+  // update, app-wide). The 60s fallback below just catches that edge case
+  // eventually; correctness doesn't depend on it — /api/rider/claim's
+  // atomic update already rejects a stale double-claim with a 409.
+  const tabRef = useRef(tab);
   useEffect(() => {
-    refreshAvailCount();
-    const id = setInterval(refreshAvailCount, 15000);
-    return () => clearInterval(id);
-  }, [refreshAvailCount]);
+    tabRef.current = tab;
+  }, [tab]);
 
-  // Riders read orders through a service-role API route (/api/rider/orders),
-  // not a direct RLS-scoped client query — there's no orders_read policy
-  // granting riders row visibility, so a client-side postgres_changes
-  // subscription would never fire for them. Only "available" actually needs
-  // background polling — new orders can appear there any time from other
-  // sellers. "active"/"history" only ever change through this rider's own
-  // actions (claim/pickup/deliver), which already refresh immediately after
-  // completing, so polling them just causes needless flicker for no benefit.
   useEffect(() => {
-    if (tab !== "available") return;
-    const id = setInterval(() => load(tab, { silent: true }), 15000);
-    return () => clearInterval(id);
-  }, [tab, load]);
+    const supabase = createClient();
+    function refreshAvailable() {
+      refreshAvailCount();
+      if (tabRef.current === "available") load("available", { silent: true });
+    }
+    refreshAvailable();
+    const channel = supabase
+      .channel("rider-available-orders")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: "status=eq.packed" },
+        refreshAvailable
+      )
+      .subscribe();
+    const fallback = setInterval(refreshAvailable, 60000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(fallback);
+    };
+  }, [refreshAvailCount, load]);
 
   async function act(action: string, order_id: string, otp?: string) {
     setBusyId(order_id);
@@ -175,8 +199,18 @@ function RiderEarnings() {
   const [lifetime, setLifetime] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Realtime-driven, not polled: ledger_entries already has an RLS policy
+  // letting a rider read rows where rider_id = auth.uid() directly (unlike
+  // `orders`, which has no rider-facing policy at all — see rider.ts), so a
+  // client-side subscription works with no policy changes. A new ledger
+  // entry only ever appears alongside a delivery completing, which is
+  // exactly when lifetimeEarnings needs refreshing too, so one subscription
+  // covers both.
   useEffect(() => {
+    const supabase = createClient();
     let alive = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
     async function load() {
       const res = await fetch("/api/rider/ledger", { cache: "no-store" });
       const json = await res.json();
@@ -185,11 +219,27 @@ function RiderEarnings() {
       setLifetime(json.lifetimeEarnings ?? 0);
       setLoading(false);
     }
-    load();
-    const id = setInterval(load, 15000);
+
+    // getSession() reads the cached session locally — no network round-trip,
+    // unlike getUser(). UI state feeding an RLS-scoped subscription, not a
+    // security decision.
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (!user || !alive) return;
+      load();
+      channel = supabase
+        .channel(`rider-ledger-${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "ledger_entries", filter: `rider_id=eq.${user.id}` },
+          load
+        )
+        .subscribe();
+    });
+
     return () => {
       alive = false;
-      clearInterval(id);
+      if (channel) supabase.removeChannel(channel);
     };
   }, []);
 

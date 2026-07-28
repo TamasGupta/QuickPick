@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Home, LayoutGrid, ShoppingCart, ClipboardList, User } from "lucide-react";
 import { useCart } from "@/store/cart";
-import { useNotifications } from "@/hooks/useNotifications";
+import { createClient } from "@/lib/supabase/client";
 import { cx } from "@/lib/utils";
 
 const ITEMS = [
@@ -16,17 +16,66 @@ const ITEMS = [
   { href: "/account", label: "Account", icon: User, match: (p: string) => p.startsWith("/account") },
 ];
 
-export function BottomNav() {
-  const path = usePathname();
+// Active-orders count for the Orders tab badge. Realtime-driven, not polled,
+// and isolated in its own component so the subscription only ever mounts for
+// the buyer-facing shell — BottomNav itself lives in the root layout and
+// renders on every route, including seller/admin/rider consoles where this
+// badge doesn't apply, so this must not run as part of that always-mounted
+// component. Scoped to buyer_id = auth.uid(), same RLS-direct pattern as
+// BuyerOrdersList.
+function useBuyerActiveCount(): number {
+  const [buyerActive, setBuyerActive] = useState(0);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let alive = true;
+    let userId: string | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function refreshCount() {
+      if (!userId) return;
+      const { count: c } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("buyer_id", userId)
+        .not("status", "in", "(delivered,cancelled)");
+      if (alive) setBuyerActive(c ?? 0);
+    }
+
+    // getSession() reads the cached session locally — no network round-trip,
+    // unlike getUser(). This is just client-side UI state feeding an
+    // RLS-scoped query, not a security decision, so there's nothing to gain
+    // from the server revalidation getUser() would add here.
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (!user || !alive) return;
+      userId = user.id;
+      refreshCount();
+      channel = supabase
+        .channel(`buyer-active-count-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "orders", filter: `buyer_id=eq.${userId}` },
+          refreshCount
+        )
+        .subscribe();
+    });
+
+    return () => {
+      alive = false;
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return buyerActive;
+}
+
+function BuyerNav({ path }: { path: string }) {
   const rawCount = useCart((s) => s.count());
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const count = mounted ? rawCount : 0;
-  const { buyerActive } = useNotifications();
-
-  // Hide inside seller/admin/rider consoles.
-  if (path.startsWith("/seller") || path.startsWith("/admin") || path.startsWith("/rider"))
-    return null;
+  const buyerActive = useBuyerActiveCount();
 
   const badgeFor = (href: string) =>
     href === "/cart" ? count : href === "/orders" && mounted ? buyerActive : 0;
@@ -62,4 +111,13 @@ export function BottomNav() {
       </ul>
     </nav>
   );
+}
+
+export function BottomNav() {
+  const path = usePathname();
+  const inConsole = path.startsWith("/seller") || path.startsWith("/admin") || path.startsWith("/rider");
+  // Hide inside seller/admin/rider consoles — and never mount BuyerNav (and
+  // its Realtime subscription) there in the first place.
+  if (inConsole) return null;
+  return <BuyerNav path={path} />;
 }
