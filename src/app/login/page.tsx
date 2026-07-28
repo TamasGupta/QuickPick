@@ -38,6 +38,23 @@ function LoginForm() {
     if (step === "otp") otpRef.current?.focus();
   }, [step]);
 
+  // Covers landing back on /login with an already-verified session but no
+  // full_name — either the middleware's onboarding-completion redirect, or
+  // the user backing/refreshing straight back onto /login itself. Jump
+  // straight to the name step instead of asking for phone/OTP again.
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", data.user.id)
+        .single();
+      if (!profile?.full_name) setStep("name");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function e164() {
     return `+91${phone}`;
   }
@@ -59,8 +76,19 @@ function LoginForm() {
       .eq("id", userId)
       .single();
     if (!profile?.full_name) {
-      // Genuinely a new form (name step) about to render — safe to
-      // re-enable its own button now.
+      const typedName = name.trim();
+      if (typedName) {
+        // Collected upfront alongside the phone number — save it right now,
+        // in the same instant the session was created, instead of routing
+        // to a separate post-OTP step a user could back out of before it's
+        // saved (see the middleware/mount-effect guard above for the
+        // fallback case where this field was left blank).
+        await supabase.from("profiles").update({ full_name: typedName }).eq("id", userId);
+        router.replace(destinationFor(profile.role));
+        router.refresh();
+        return;
+      }
+      // Left the optional name field blank — fall back to asking for it.
       setLoading(false);
       setStep("name");
       return;
@@ -185,6 +213,14 @@ function LoginForm() {
             </p>
 
             <form onSubmit={sendOtp} className="mt-4 space-y-3">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Your name"
+                className="input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
               <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100">
                 <span className="flex items-center bg-gray-50 px-3 text-sm font-semibold text-ink-soft">
                   +91
@@ -192,7 +228,6 @@ function LoginForm() {
                 <input
                   type="tel"
                   inputMode="numeric"
-                  autoFocus
                   required
                   placeholder="98765 43210"
                   className="w-full px-3 py-2.5 text-sm outline-none"
@@ -200,6 +235,7 @@ function LoginForm() {
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 />
               </div>
+              <p className="text-xs text-ink-faint">Already have an account? You can leave the name blank.</p>
               <button className="btn-primary w-full py-3" disabled={loading}>
                 {loading ? "Sending…" : STATIC_MODE ? "Continue" : "Send OTP"}
               </button>

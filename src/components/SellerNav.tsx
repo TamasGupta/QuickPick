@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 const LINKS = [
   { href: "/seller", label: "Dashboard" },
@@ -13,9 +14,65 @@ const LINKS = [
   { href: "/seller/settings", label: "Settings" },
 ];
 
+// New-orders badge for the Orders tab. Realtime-driven, not polled: this
+// used to go through /api/notifications on a 20s timer regardless of
+// whether anything changed. RLS already lets a seller read their own
+// orders directly (orders_read policy), so this resolves the seller id
+// client-side once and subscribes straight to postgres_changes.
+function useSellerNewCount(): number {
+  const [sellerNew, setSellerNew] = useState(0);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let alive = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function refreshCount(sellerId: string) {
+      const { count } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", sellerId)
+        .eq("status", "placed")
+        .neq("payment_status", "pending");
+      if (alive) setSellerNew(count ?? 0);
+    }
+
+    // getSession() reads the cached session locally — no network round-trip,
+    // unlike getUser(). Same reasoning as BottomNav's useBuyerActiveCount:
+    // this is UI state feeding an RLS-scoped query, not a security decision.
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      if (!user || !alive) return;
+      const { data: seller } = await supabase
+        .from("sellers")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (!seller?.id || !alive) return;
+
+      refreshCount(seller.id);
+      channel = supabase
+        .channel(`seller-new-orders-${seller.id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "orders", filter: `seller_id=eq.${seller.id}` },
+          () => refreshCount(seller.id)
+        )
+        .subscribe();
+    });
+
+    return () => {
+      alive = false;
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return sellerNew;
+}
+
 export function SellerNav() {
   const path = usePathname();
-  const { sellerNew } = useNotifications();
+  const sellerNew = useSellerNewCount();
   return (
     <nav className="mb-4 flex gap-1 overflow-x-auto border-b">
       {LINKS.map((l) => {

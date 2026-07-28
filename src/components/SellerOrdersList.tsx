@@ -14,9 +14,11 @@ type OrderItem = {
   out_of_stock: boolean;
 };
 
-// Polls the seller's own orders (RLS already scopes this client-side query to
-// the owning seller) and updates the list in place — no navigation, so no
-// loading.tsx flash between polls, unlike a router.refresh()-driven approach.
+// Subscribes to Realtime changes on the seller's own orders (RLS already
+// scopes this client-side query to the owning seller) and updates the list
+// in place — no navigation, so no loading.tsx flash, and no polling: the
+// refetch only runs when Postgres actually reports a change on a row
+// belonging to this seller (or on one of their orders' items).
 export function SellerOrdersList({
   sellerId,
   initialOrders,
@@ -32,7 +34,7 @@ export function SellerOrdersList({
   useEffect(() => {
     const supabase = createClient();
     let alive = true;
-    async function poll() {
+    async function refetch() {
       const { data: orders } = await supabase
         .from("orders")
         .select("*")
@@ -55,10 +57,24 @@ export function SellerOrdersList({
         setItemsByOrder(map);
       }
     }
-    const id = setInterval(poll, 8000);
+
+    // order_items has no seller_id column to filter on directly, so that
+    // channel binds unfiltered and refetch() itself re-derives the scoped
+    // set from `orders` each time — matches the pre-Realtime poll's own
+    // scoping, just event-driven instead of on a timer.
+    const channel = supabase
+      .channel(`seller-orders-${sellerId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `seller_id=eq.${sellerId}` },
+        refetch
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, refetch)
+      .subscribe();
+
     return () => {
       alive = false;
-      clearInterval(id);
+      supabase.removeChannel(channel);
     };
   }, [sellerId]);
 

@@ -5,6 +5,7 @@ import { ShieldCheck, Bike, Phone } from "lucide-react";
 import { OrderTimeline } from "@/components/OrderTimeline";
 import { OrderIssueResolver } from "@/components/OrderIssueResolver";
 import { LottieIcon } from "@/components/LottieIcon";
+import { createClient } from "@/lib/supabase/client";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 import type { OrderStatus } from "@/lib/types";
 
@@ -32,10 +33,13 @@ interface LiveData {
   items: Item[];
 }
 
-// Polls /api/orders/:id/live in the background and re-renders just the
-// status-dependent parts of the order detail page in place — no navigation,
-// so no loading.tsx flash between polls, unlike a router.refresh()-driven
-// approach.
+// Re-renders just the status-dependent parts of the order detail page in
+// place — no navigation, so no loading.tsx flash — when Postgres reports a
+// change on this order or its items. Still goes through
+// /api/orders/:id/live rather than a direct client query, since the rider's
+// name/phone needs the service-role client (RLS keeps other users' profiles
+// private) — the difference from the old approach is this only runs when
+// something actually changed, not on an 8s timer regardless.
 export function OrderStatusLive({
   orderId,
   orderIdShort,
@@ -49,7 +53,7 @@ export function OrderStatusLive({
 
   useEffect(() => {
     let alive = true;
-    async function poll() {
+    async function refresh() {
       try {
         const res = await fetch(`/api/orders/${orderId}/live`, { cache: "no-store" });
         if (!res.ok) return;
@@ -59,10 +63,25 @@ export function OrderStatusLive({
         /* ignore transient failures */
       }
     }
-    const id = setInterval(poll, 8000);
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`order-live-${orderId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_items", filter: `order_id=eq.${orderId}` },
+        refresh
+      )
+      .subscribe();
+
     return () => {
       alive = false;
-      clearInterval(id);
+      supabase.removeChannel(channel);
     };
   }, [orderId]);
 

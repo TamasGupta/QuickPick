@@ -49,10 +49,20 @@ export function Header() {
   // never fire supabase.auth.onAuthStateChange on this client SDK instance —
   // without this, the header stays stuck showing "Login" until a manual
   // page refresh remounts it.
+  //
+  // getSession() reads the already-cached session from local storage —
+  // unlike getUser(), it never makes a network round-trip to revalidate the
+  // JWT server-side. That server revalidation matters for a security
+  // decision (a server-side API route deciding what to authorize), but this
+  // is just client-side UI state (is someone logged in, what's their id to
+  // scope further queries) feeding queries that are themselves RLS-protected
+  // regardless — getUser() here was three redundant network calls (this
+  // effect plus the two below) on every seller-console page load for no
+  // extra safety.
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setLoggedIn(!!data.user);
-      setPhone(data.user?.phone ?? null);
+    supabase.auth.getSession().then(({ data }) => {
+      setLoggedIn(!!data.session?.user);
+      setPhone(data.session?.user?.phone ?? null);
     });
   }, [supabase, pathname]);
 
@@ -68,12 +78,13 @@ export function Header() {
       .order("is_default", { ascending: false })
       .limit(1)
       .then(({ data }) => setDefaultAddress((data?.[0] as Address) ?? null));
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      if (!user) return;
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
-        .eq("id", data.user.id)
+        .eq("id", user.id)
         .single();
       setFullName(profile?.full_name ?? null);
     });
@@ -88,12 +99,13 @@ export function Header() {
       setSellerAddr(null);
       return;
     }
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = data.session?.user;
+      if (!user) return;
       const { data: seller } = await supabase
         .from("sellers")
         .select("city, pincode, lat")
-        .eq("owner_id", data.user.id)
+        .eq("owner_id", user.id)
         .maybeSingle();
       setSellerAddr(seller ?? null);
     });

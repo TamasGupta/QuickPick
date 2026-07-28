@@ -11,9 +11,11 @@ interface Stats {
   pending: number;
 }
 
-// Polls the seller's own product/order counts (RLS already scopes this
-// client-side query to the owning seller) and updates the numbers in place —
-// no navigation, so no loading.tsx flash between polls.
+// Subscribes to Realtime changes on the seller's own products/orders (RLS
+// already scopes these client-side queries to the owning seller) and
+// recomputes the numbers in place — no navigation, so no loading.tsx flash,
+// and no polling: this only recomputes when Postgres reports an actual
+// change on a row belonging to this seller.
 export function SellerStatsLive({
   sellerId,
   storeStatus,
@@ -28,7 +30,7 @@ export function SellerStatsLive({
   useEffect(() => {
     const supabase = createClient();
     let alive = true;
-    async function poll() {
+    async function refresh() {
       const [{ count: productCount }, { data: orders }] = await Promise.all([
         supabase.from("products").select("id", { count: "exact", head: true }).eq("seller_id", sellerId),
         supabase.from("orders").select("total, status").eq("seller_id", sellerId).neq("payment_status", "pending"),
@@ -41,10 +43,24 @@ export function SellerStatsLive({
         setStats({ productCount: productCount ?? 0, orderCount: orders?.length ?? 0, revenue, pending });
       }
     }
-    const id = setInterval(poll, 15000);
+
+    const channel = supabase
+      .channel(`seller-stats-${sellerId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `seller_id=eq.${sellerId}` },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "products", filter: `seller_id=eq.${sellerId}` },
+        refresh
+      )
+      .subscribe();
+
     return () => {
       alive = false;
-      clearInterval(id);
+      supabase.removeChannel(channel);
     };
   }, [sellerId]);
 
