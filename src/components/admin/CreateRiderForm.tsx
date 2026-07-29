@@ -8,7 +8,7 @@ import { notify } from "@/store/notify";
 
 export function CreateRiderForm() {
   const router = useRouter();
-  const [form, setForm] = useState({ phone: "", full_name: "" });
+  const [form, setForm] = useState({ email: "", phone: "", full_name: "" });
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -25,8 +25,8 @@ export function CreateRiderForm() {
       notify.error(json.error ?? "Something went wrong");
       return;
     }
-    notify.success(`Delivery partner created — ${json.phone} can now log in and land on their dashboard.`);
-    setForm({ phone: "", full_name: "" });
+    notify.success(`Delivery partner created — ${json.email} can now log in and land on their dashboard.`);
+    setForm({ email: "", phone: "", full_name: "" });
     router.refresh();
   }
 
@@ -37,7 +37,15 @@ export function CreateRiderForm() {
       </h3>
       <input
         className="input"
-        placeholder="10-digit mobile"
+        type="email"
+        placeholder="Login email"
+        required
+        value={form.email}
+        onChange={(e) => setForm({ ...form, email: e.target.value })}
+      />
+      <input
+        className="input"
+        placeholder="Contact phone (10-digit)"
         required
         value={form.phone}
         onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}

@@ -3,17 +3,24 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Phone, ShieldCheck, ArrowLeft, User as UserIcon, TriangleAlert } from "lucide-react";
+import { Mail, ShieldCheck, ArrowLeft, User as UserIcon, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/store/notify";
 
 const RESEND_SECONDS = 60;
 
-// TEMPORARY: while the SMS provider isn't delivering, everyone logs in with
-// one shared static code (set server-side via STATIC_OTP_CODE) instead of a
-// real per-user OTP. Turn this off (unset the env vars, redeploy) the moment
-// real SMS delivery works — see /api/auth/static-login for the security note.
+// TEMPORARY: while email delivery isn't confirmed working end-to-end,
+// everyone logs in with one shared static code (set server-side via
+// STATIC_OTP_CODE) instead of a real per-user OTP. Turn this off (unset the
+// env vars, redeploy) once real email delivery is verified — see
+// /api/auth/static-login for the security note.
 const STATIC_MODE = process.env.NEXT_PUBLIC_STATIC_OTP_ENABLED === "true";
+
+// WhatsApp OTP (Meta Cloud API) is on hold — it requires a verified Meta
+// Business account we don't currently have. The send/verify branches below
+// are commented out rather than deleted so this can be re-enabled later
+// without rebuilding it; see lib/whatsapp.ts and /api/auth/whatsapp/*.
+// const WHATSAPP_MODE = !STATIC_MODE && process.env.NEXT_PUBLIC_WHATSAPP_OTP_ENABLED === "true";
 
 function LoginForm() {
   const supabase = createClient();
@@ -21,8 +28,8 @@ function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") || "/";
 
-  const [step, setStep] = useState<"phone" | "otp" | "name">("phone");
-  const [phone, setPhone] = useState("");
+  const [step, setStep] = useState<"email" | "otp" | "name">("email");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +49,7 @@ function LoginForm() {
   // Covers landing back on /login with an already-verified session but no
   // full_name — either the middleware's onboarding-completion redirect, or
   // the user backing/refreshing straight back onto /login itself. Jump
-  // straight to the name step instead of asking for phone/OTP again.
+  // straight to the name step instead of asking for email/OTP again.
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
@@ -56,8 +63,8 @@ function LoginForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function e164() {
-    return `+91${phone}`;
+  function normalizedEmail() {
+    return email.trim().toLowerCase();
   }
 
   // Sellers/riders/admins always land on their own dashboard, regardless of
@@ -79,11 +86,11 @@ function LoginForm() {
     if (!profile?.full_name) {
       const typedName = name.trim();
       if (typedName) {
-        // Collected upfront alongside the phone number — save it right now,
-        // in the same instant the session was created, instead of routing
-        // to a separate post-OTP step a user could back out of before it's
-        // saved (see the middleware/mount-effect guard above for the
-        // fallback case where this field was left blank).
+        // Collected upfront alongside the email — save it right now, in the
+        // same instant the session was created, instead of routing to a
+        // separate post-OTP step a user could back out of before it's saved
+        // (see the middleware/mount-effect guard above for the fallback
+        // case where this field was left blank).
         await supabase.from("profiles").update({ full_name: typedName }).eq("id", userId);
         router.replace(destinationFor(profile?.role));
         router.refresh();
@@ -106,24 +113,24 @@ function LoginForm() {
 
   async function sendOtp(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!/^\d{10}$/.test(phone)) {
-      notify.error("Enter a valid 10-digit mobile number.");
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      notify.error("Enter a valid email address.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const checkRes = await fetch("/api/auth/check-phone", {
+      const checkRes = await fetch("/api/auth/check-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: e164() }),
+        body: JSON.stringify({ email: normalizedEmail() }),
       });
       const checkData = await checkRes.json();
 
       if (checkRes.ok && !checkData.exists) {
         setLoading(false);
-        notify.error("No account found with this mobile number. Please register first.");
+        notify.error("No account found with this email. Please register first.");
         return;
       }
     } catch {
@@ -135,7 +142,14 @@ function LoginForm() {
       setStep("otp");
       return;
     }
-    const { error } = await supabase.auth.signInWithOtp({ phone: e164() });
+
+    // WhatsApp OTP branch on hold — see WHATSAPP_MODE comment above.
+    // if (WHATSAPP_MODE) {
+    //   const res = await fetch("/api/auth/whatsapp/send-otp", { ... });
+    //   ...
+    // }
+
+    const { error } = await supabase.auth.signInWithOtp({ email: normalizedEmail() });
     setLoading(false);
     if (error) {
       notify.error(error.message);
@@ -157,7 +171,7 @@ function LoginForm() {
       const res = await fetch("/api/auth/static-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: e164(), code: otp }),
+        body: JSON.stringify({ email: normalizedEmail(), code: otp }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -177,10 +191,16 @@ function LoginForm() {
       return;
     }
 
+    // WhatsApp OTP branch on hold — see WHATSAPP_MODE comment above.
+    // if (WHATSAPP_MODE) {
+    //   const res = await fetch("/api/auth/whatsapp/verify-otp", { ... });
+    //   ...
+    // }
+
     const { data, error } = await supabase.auth.verifyOtp({
-      phone: e164(),
+      email: normalizedEmail(),
       token: otp,
-      type: "sms",
+      type: "email",
     });
     if (error) {
       setLoading(false);
@@ -218,36 +238,30 @@ function LoginForm() {
       {STATIC_MODE && (
         <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-xs font-medium text-amber-700">
           <TriangleAlert className="h-4 w-4 shrink-0" />
-          Static OTP mode — SMS delivery is temporarily disabled for testing.
+          Static OTP mode — email delivery is temporarily disabled for testing.
         </div>
       )}
       <div className="card animate-fade-in p-6">
-        {step === "phone" && (
+        {step === "email" && (
           <>
             <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-              <Phone className="h-6 w-6" />
+              <Mail className="h-6 w-6" />
             </span>
             <h1 className="text-xl font-extrabold text-ink">Log in</h1>
             <p className="mt-1 text-sm text-ink-faint">
-              {STATIC_MODE ? "Enter your mobile number to continue." : "We'll text you a one-time code."}
+              {STATIC_MODE ? "Enter your email to continue." : "We'll email you a one-time code."}
             </p>
 
             <form onSubmit={sendOtp} className="mt-4 space-y-3">
-              <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100">
-                <span className="flex items-center bg-gray-50 px-3 text-sm font-semibold text-ink-soft">
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  required
-                  autoFocus
-                  placeholder="98765 43210"
-                  className="w-full px-3 py-2.5 text-sm outline-none"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                />
-              </div>
+              <input
+                type="email"
+                required
+                autoFocus
+                placeholder="you@example.com"
+                className="input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
               <button className="btn-primary w-full py-3" disabled={loading}>
                 {loading ? "Sending…" : STATIC_MODE ? "Continue" : "Send OTP"}
               </button>
@@ -268,21 +282,21 @@ function LoginForm() {
           <>
             <button
               onClick={() => {
-                setStep("phone");
+                setStep("email");
                 setOtp("");
               }}
               className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
             >
-              <ArrowLeft className="h-4 w-4" /> Change number
+              <ArrowLeft className="h-4 w-4" /> Change email
             </button>
             <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
               <ShieldCheck className="h-6 w-6" />
             </span>
-            <h1 className="text-xl font-extrabold text-ink">Verify your number</h1>
+            <h1 className="text-xl font-extrabold text-ink">Verify your email</h1>
             <p className="mt-1 text-sm text-ink-faint">
               {STATIC_MODE
                 ? "Enter the shared testing code."
-                : `Enter the 6-digit code sent to +91 ${phone}`}
+                : `Enter the 6-digit code sent to ${email}`}
             </p>
 
             <form onSubmit={verifyOtp} className="mt-4 space-y-3">

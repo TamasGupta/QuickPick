@@ -57,15 +57,16 @@ export function ProductEditModal({
     }
     setUploading(true);
     try {
-      // Path is scoped to the product's own seller folder — matches the
-      // storage RLS policy in migration 008, which only lets a seller write
-      // inside <their seller id>/ (or an admin write anywhere).
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${product.seller_id}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("product-images").upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-      setImageUrl(data.publicUrl);
+      // Uploads to Cloudinary via our own API route rather than Supabase
+      // Storage — the route re-verifies (server-side, via RLS-scoped select)
+      // that this caller actually owns the product before accepting the
+      // file, same boundary the old storage RLS policy enforced.
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch(`/api/products/${product.id}/image`, { method: "POST", body });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Upload failed");
+      setImageUrl(json.url);
     } catch (err) {
       notify.error((err as Error).message);
     } finally {

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock,
+  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { createClient } from "@/lib/supabase/client";
@@ -11,13 +12,14 @@ import { notify } from "@/store/notify";
 import type { RiderOrder } from "@/lib/rider";
 import type { LedgerEntry } from "@/lib/types";
 
-type Tab = "available" | "active" | "history" | "earnings";
+type Tab = "available" | "active" | "history" | "earnings" | "profile";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "available", label: "Available" },
   { key: "active", label: "My deliveries" },
   { key: "history", label: "Completed" },
   { key: "earnings", label: "Earnings" },
+  { key: "profile", label: "Profile" },
 ];
 
 // Turn-by-turn directions (not just a dropped pin) from wherever the rider
@@ -31,7 +33,15 @@ function directionsHref(dest: { lat: number | null; lng: number | null } | null,
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}`;
 }
 
-export function RiderDashboard({ name }: { name: string }) {
+export function RiderDashboard({
+  name,
+  email,
+  phone,
+}: {
+  name: string;
+  email: string | null;
+  phone: string | null;
+}) {
   const [tab, setTab] = useState<Tab>("available");
   const [orders, setOrders] = useState<RiderOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +53,7 @@ export function RiderDashboard({ name }: { name: string }) {
   // cycle. Tab switches and user-triggered refreshes stay non-silent since
   // there's a real wait with no prior data for that view yet.
   const load = useCallback(async (t: Tab, opts: { silent?: boolean } = {}) => {
-    if (t === "earnings") return; // handled by <RiderEarnings> itself
+    if (t === "earnings" || t === "profile") return; // handled by their own components
     if (!opts.silent) setLoading(true);
     const res = await fetch(`/api/rider/orders?scope=${t}`, { cache: "no-store" });
     const json = await res.json();
@@ -154,6 +164,8 @@ export function RiderDashboard({ name }: { name: string }) {
 
       {tab === "earnings" ? (
         <RiderEarnings />
+      ) : tab === "profile" ? (
+        <RiderProfile name={name} email={email} phone={phone} />
       ) : (
         <>
       <div className="flex items-center justify-between px-1">
@@ -290,6 +302,57 @@ function RiderEarnings() {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+function RiderProfile({
+  name,
+  email,
+  phone,
+}: {
+  name: string;
+  email: string | null;
+  phone: string | null;
+}) {
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function logout() {
+    setLoggingOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="card flex items-center gap-4 p-5">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600">
+          <UserIcon className="h-7 w-7 text-white" />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-ink">{name}</p>
+          <p className="mt-1 flex items-center gap-1 text-xs text-ink-soft">
+            <Mail className="h-3 w-3" />
+            {email ?? "No email on file"}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-soft">
+            <Phone className="h-3 w-3" />
+            {phone ? `+${phone}` : "No phone on file"}
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={logout}
+        disabled={loggingOut}
+        className="btn-outline w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50"
+      >
+        <LogOut className="h-4 w-4" />
+        {loggingOut ? "Logging out…" : "Log out"}
+      </button>
     </div>
   );
 }

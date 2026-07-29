@@ -20,8 +20,8 @@ interface AddressFormData {
   city?: string;
   state?: string;
   pincode: string;
-  lat?: number;
-  lng?: number;
+  lat?: number | null;
+  lng?: number | null;
   is_default: boolean;
 }
 
@@ -42,6 +42,14 @@ export function SavedAddresses() {
     pincode: "",
     is_default: false,
   });
+  // The address being edited, exactly as loaded — used at submit time to
+  // detect whether the buyer changed the written address text without
+  // re-confirming a map pin (see handleSubmit for why that matters).
+  const [editingOriginal, setEditingOriginal] = useState<Address | null>(null);
+  // True once the buyer explicitly re-pins during this edit session — as
+  // opposed to `form.lat/lng` just still holding the address's old,
+  // never-touched coordinates.
+  const [pinTouched, setPinTouched] = useState(false);
 
   useEffect(() => {
     fetchAddresses();
@@ -72,10 +80,28 @@ export function SavedAddresses() {
       const url = editingId ? `/api/addresses/${editingId}` : "/api/addresses";
       const method = editingId ? "PUT" : "POST";
 
+      // If the buyer edited the written address text without re-confirming a
+      // map pin, the old lat/lng no longer necessarily match — sending them
+      // as-is silently keeps a rider's "Navigate" pointed at wherever the
+      // address used to be, even though the text now reads correctly. Null
+      // them out instead: directionsHref() already falls back to a text-based
+      // Maps search when there's no pin, which resolves to the address as
+      // actually written rather than a stale, possibly wrong, location.
+      const textChanged =
+        !!editingOriginal &&
+        !pinTouched &&
+        (form.line1 !== editingOriginal.line1 ||
+          (form.line2 || "") !== (editingOriginal.line2 || "") ||
+          (form.city || "") !== (editingOriginal.city || "") ||
+          (form.state || "") !== (editingOriginal.state || "") ||
+          form.pincode !== editingOriginal.pincode);
+
+      const payload = textChanged ? { ...form, lat: null, lng: null } : form;
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error("Failed to save address");
@@ -115,6 +141,7 @@ export function SavedAddresses() {
       lat: loc.lat,
       lng: loc.lng,
     }));
+    setPinTouched(true);
     setShowMap(false);
   }
 
@@ -129,6 +156,8 @@ export function SavedAddresses() {
       is_default: false,
     });
     setEditingId(null);
+    setEditingOriginal(null);
+    setPinTouched(false);
     setShowForm(false);
     setShowMap(false);
   }
@@ -146,6 +175,8 @@ export function SavedAddresses() {
       is_default: addr.is_default,
     });
     setEditingId(addr.id);
+    setEditingOriginal(addr);
+    setPinTouched(false);
     setShowForm(true);
   }
 

@@ -17,12 +17,16 @@ export function Header() {
   // Seller/admin/rider consoles don't shop — same route check BottomNav uses.
   const inConsole = pathname.startsWith("/seller") || pathname.startsWith("/admin") || pathname.startsWith("/rider");
   const inSellerConsole = pathname.startsWith("/seller");
-  const inAdminOrRiderConsole = pathname.startsWith("/admin") || pathname.startsWith("/rider");
+  const inRiderConsole = pathname.startsWith("/rider");
+  const inAdminOrRiderConsole = pathname.startsWith("/admin") || inRiderConsole;
+  // Neither console has anything to search — sellers/riders manage their own
+  // orders/products/deliveries, not the buyer catalog.
+  const hideSearch = inSellerConsole || inRiderConsole;
   // Login has no shopping context — search, delivery location, and the
   // cart/login actions are all irrelevant (and "Login" is actively
   // confusing) while you're already on the login screen.
   const onLoginPage = pathname.startsWith("/login");
-  const [phone, setPhone] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [q, setQ] = useState(params.get("q") ?? "");
   const [mounted, setMounted] = useState(false);
@@ -38,7 +42,7 @@ export function Header() {
     setMounted(true);
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setLoggedIn(!!session?.user);
-      setPhone(session?.user?.phone ?? null);
+      setEmail(session?.user?.email ?? null);
     });
     return () => sub.subscription.unsubscribe();
   }, [supabase]);
@@ -62,7 +66,7 @@ export function Header() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setLoggedIn(!!data.session?.user);
-      setPhone(data.session?.user?.phone ?? null);
+      setEmail(data.session?.user?.email ?? null);
     });
   }, [supabase, pathname]);
 
@@ -204,16 +208,18 @@ export function Header() {
               </div>
             ) : null}
 
-            {/* Search (desktop) */}
-            <form onSubmit={submitSearch} className="relative hidden flex-1 sm:block">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder='Search "milk", "bread", "atta"…'
-                className="input pl-10"
-              />
-            </form>
+            {/* Search (desktop) — sellers/riders have nothing to search here. */}
+            {!hideSearch && (
+              <form onSubmit={submitSearch} className="relative hidden flex-1 sm:block">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder='Search "milk", "bread", "atta"…'
+                  className="input pl-10"
+                />
+              </form>
+            )}
           </>
         )}
 
@@ -224,7 +230,7 @@ export function Header() {
               <Link
                 href="/account"
                 className="btn-ghost hidden sm:inline-flex"
-                title={phone ? `+${phone}` : undefined}
+                title={email ?? undefined}
               >
                 <User className="h-5 w-5" />
                 <span className="hidden max-w-[140px] truncate md:inline">{fullName || "Account"}</span>
@@ -252,8 +258,8 @@ export function Header() {
         )}
       </div>
 
-      {/* Search (mobile) */}
-      {!onLoginPage && (
+      {/* Search (mobile) — sellers/riders have nothing to search here. */}
+      {!onLoginPage && !hideSearch && (
         <div className="container-app pb-3 sm:hidden">
           <form onSubmit={submitSearch} className="relative">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />

@@ -87,7 +87,12 @@ function isRelevant(item: ApifyImageResult, query: string): boolean {
 // eventually, but retrying every single import would defeat the cache.
 const CACHE_MISS_RETRY_DAYS = 14;
 
-function cacheKeyFor(name: string, brand?: string | null, unit?: string | null): string {
+// Exported so a seller's manual photo upload (see /api/products/[id]/image)
+// can write into the same cache under the same normalization — a real,
+// verified product photo is more trustworthy than a scraped Google Images
+// result, so it should pre-empt Apify for every other seller listing the
+// same brand+name+unit from here on.
+export function cacheKeyFor(name: string, brand?: string | null, unit?: string | null): string {
   const sizeHint = unit && unit.toLowerCase() !== "unit" ? unit : null;
   return [brand, name, sizeHint]
     .filter(Boolean)

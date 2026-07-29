@@ -3,12 +3,17 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { User, Phone, ShieldCheck, ArrowLeft, TriangleAlert, Sparkles, ShoppingBag, CheckCircle2 } from "lucide-react";
+import { User, Mail, Phone, ShieldCheck, ArrowLeft, TriangleAlert, Sparkles, ShoppingBag, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/store/notify";
 
 const RESEND_SECONDS = 60;
 const STATIC_MODE = process.env.NEXT_PUBLIC_STATIC_OTP_ENABLED === "true";
+
+// WhatsApp OTP (Meta Cloud API) is on hold — it requires a verified Meta
+// Business account we don't currently have. See the matching comment in
+// src/app/login/page.tsx and lib/whatsapp.ts / /api/auth/whatsapp/*.
+// const WHATSAPP_MODE = !STATIC_MODE && process.env.NEXT_PUBLIC_WHATSAPP_OTP_ENABLED === "true";
 
 function RegisterForm() {
   const supabase = createClient();
@@ -18,6 +23,7 @@ function RegisterForm() {
 
   const [step, setStep] = useState<"details" | "otp" | "success">("details");
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -51,8 +57,8 @@ function RegisterForm() {
     });
   }, [supabase, router, next]);
 
-  function e164() {
-    return `+91${phone}`;
+  function normalizedEmail() {
+    return email.trim().toLowerCase();
   }
 
   async function handleSendOtp(e: React.FormEvent) {
@@ -60,6 +66,10 @@ function RegisterForm() {
     const trimmedName = name.trim();
     if (!trimmedName) {
       notify.error("Please enter your full name.");
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      notify.error("Enter a valid email address.");
       return;
     }
     if (!/^\d{10}$/.test(phone)) {
@@ -70,16 +80,16 @@ function RegisterForm() {
     setLoading(true);
 
     try {
-      const checkRes = await fetch("/api/auth/check-phone", {
+      const checkRes = await fetch("/api/auth/check-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: e164() }),
+        body: JSON.stringify({ email: normalizedEmail() }),
       });
       const checkData = await checkRes.json();
 
       if (checkRes.ok && checkData.exists) {
         setLoading(false);
-        notify.error("An account with this mobile number already exists. Please log in instead.");
+        notify.error("An account with this email already exists. Please log in instead.");
         return;
       }
     } catch {
@@ -92,7 +102,7 @@ function RegisterForm() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({ phone: e164() });
+    const { error } = await supabase.auth.signInWithOtp({ email: normalizedEmail() });
     setLoading(false);
 
     if (error) {
@@ -119,7 +129,7 @@ function RegisterForm() {
       const res = await fetch("/api/auth/static-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: e164(), code: otp }),
+        body: JSON.stringify({ email: normalizedEmail(), code: otp }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -136,9 +146,9 @@ function RegisterForm() {
       userId = user.id;
     } else {
       const { data, error } = await supabase.auth.verifyOtp({
-        phone: e164(),
+        email: normalizedEmail(),
         token: otp,
-        type: "sms",
+        type: "email",
       });
       if (error || !data.user) {
         setLoading(false);
@@ -150,9 +160,15 @@ function RegisterForm() {
 
     if (userId) {
       const trimmedName = name.trim();
+      // phone is plain contact info here (no OTP/verification gate) — kept
+      // so the existing buyer<->rider delivery-call feature keeps working
+      // now that auth itself no longer runs through phone (see migration
+      // 018). Stored with the "91" prefix, no "+", matching the format the
+      // old phone-auth flow used to write (profiles.phone = phone.replace
+      // ("+", "")) — every existing display of this field expects that shape.
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ full_name: trimmedName })
+        .update({ full_name: trimmedName, phone: `91${phone}` })
         .eq("id", userId);
 
       if (updateError) {
@@ -178,7 +194,7 @@ function RegisterForm() {
       {STATIC_MODE && (
         <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-xs font-medium text-amber-700">
           <TriangleAlert className="h-4 w-4 shrink-0" />
-          Static OTP mode — SMS delivery is temporarily disabled for testing.
+          Static OTP mode — email delivery is temporarily disabled for testing.
         </div>
       )}
 
@@ -254,10 +270,28 @@ function RegisterForm() {
               </div>
 
               <div>
+                <label className="mb-1 block text-xs font-medium text-ink-soft">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-ink-faint" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    className="input pl-9"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label className="mb-1 block text-xs font-medium text-ink-soft">Mobile Number</label>
+                <p className="mb-1 text-[11px] text-ink-faint">
+                  Used to reach you about deliveries — not for login.
+                </p>
                 <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100">
                   <span className="flex items-center bg-gray-50 px-3 text-sm font-semibold text-ink-soft">
-                    +91
+                    <Phone className="h-4 w-4" />
                   </span>
                   <input
                     type="tel"
@@ -299,11 +333,11 @@ function RegisterForm() {
             <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
               <ShieldCheck className="h-6 w-6" />
             </span>
-            <h1 className="text-xl font-extrabold text-ink">Verify phone number</h1>
+            <h1 className="text-xl font-extrabold text-ink">Verify your email</h1>
             <p className="mt-1 text-sm text-ink-faint">
               {STATIC_MODE
                 ? "Enter the shared testing code."
-                : `Enter the 6-digit verification code sent to +91 ${phone}`}
+                : `Enter the 6-digit verification code sent to ${email}`}
             </p>
 
             <form onSubmit={handleVerifyOtp} className="mt-4 space-y-3">

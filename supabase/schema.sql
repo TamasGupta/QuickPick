@@ -42,7 +42,11 @@ create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   role user_role not null default 'buyer',
   full_name text,
+  -- Login identity (auth moved from phone+OTP to email+OTP — see migration
+  -- 018). phone is kept as a plain, unverified contact field (buyer<->rider
+  -- delivery calls), no longer mirrored from the auth provider.
   phone text,
+  email text,
   created_at timestamptz not null default now()
 );
 
@@ -50,8 +54,8 @@ create table if not exists profiles (
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, full_name, phone)
-  values (new.id, new.raw_user_meta_data->>'full_name', new.phone)
+  insert into public.profiles (id, full_name, phone, email)
+  values (new.id, new.raw_user_meta_data->>'full_name', new.phone, new.email)
   on conflict (id) do nothing;
   return new;
 end; $$;
