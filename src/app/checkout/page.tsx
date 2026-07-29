@@ -93,6 +93,14 @@ export default function CheckoutPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
   const [picked, setPicked] = useState<PickedLocation | null>(null);
+  // The address being edited, exactly as loaded — lets saveAddress detect
+  // whether the buyer changed the written address text without re-pinning
+  // (see saveAddress for why a stale pin is worse than no pin at all).
+  const [editingOriginal, setEditingOriginal] = useState<Address | null>(null);
+  // True once the buyer explicitly (re-)confirms a pin this session — as
+  // opposed to `picked` just holding the address's old, never-touched
+  // coordinates seeded by startEdit.
+  const [pinTouched, setPinTouched] = useState(false);
 
   // Which address's inline map is open — "new" for the add-address form, an
   // address id for pinning/repinning an already-saved one, or null (closed).
@@ -122,6 +130,7 @@ export default function CheckoutPage() {
       state: loc.state || f.state,
       pincode: loc.pincode || f.pincode,
     }));
+    setPinTouched(true);
     setMapFor(null);
   }
 
@@ -213,6 +222,8 @@ export default function CheckoutPage() {
   function resetAddressForm() {
     setShowAddr(false);
     setEditingId(null);
+    setEditingOriginal(null);
+    setPinTouched(false);
     setPicked(null);
     setMapFor(null);
     setForm({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
@@ -220,6 +231,8 @@ export default function CheckoutPage() {
 
   function startEdit(a: Address) {
     setEditingId(a.id);
+    setEditingOriginal(a);
+    setPinTouched(false);
     setForm({
       line1: a.line1,
       line2: a.line2 ?? "",
@@ -246,10 +259,26 @@ export default function CheckoutPage() {
     e.preventDefault();
     if (!userId) return;
     if (editingId) {
+      // If the buyer changed the written address text without re-pinning,
+      // `picked` is still just whatever startEdit seeded from the old row —
+      // sending it back as-is would silently keep a rider's "Navigate"
+      // pointed at the old location even though the text now reads
+      // correctly. Drop the stale pin instead: with no lat/lng, the rider's
+      // directionsHref() falls back to a text-based Maps search, which
+      // resolves to the address as actually written.
+      const textChanged =
+        !!editingOriginal &&
+        !pinTouched &&
+        (form.line1 !== editingOriginal.line1 ||
+          (form.line2 || "") !== (editingOriginal.line2 || "") ||
+          (form.city || "") !== (editingOriginal.city || "") ||
+          (form.state || "") !== (editingOriginal.state || "") ||
+          form.pincode !== editingOriginal.pincode);
+
       const update = {
         ...form,
-        lat: picked?.lat ?? null,
-        lng: picked?.lng ?? null,
+        lat: textChanged ? null : (picked?.lat ?? null),
+        lng: textChanged ? null : (picked?.lng ?? null),
       };
       const { data, error } = await supabase.from("addresses").update(update).eq("id", editingId).select().single();
       if (error) return notify.error(error.message);

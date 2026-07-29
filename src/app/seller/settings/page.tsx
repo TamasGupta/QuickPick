@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { MapPin, Clock } from "lucide-react";
+import { MapPin, Clock, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SellerNav } from "@/components/SellerNav";
 import { SkelLine } from "@/components/skeletons";
@@ -254,6 +254,12 @@ export default function SellerSettingsPage() {
 
   // Live preview — computed purely client-side (not authoritative)
   const previewOpen = hoursLoaded ? computeLocalIsOpen(schedule, timezone) : null;
+
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   if (loading) {
     return (
@@ -512,6 +518,14 @@ export default function SellerSettingsPage() {
 
         <button form="settings-form" className="btn-primary w-full" disabled={saving}>
           {saving ? "Saving…" : "Save changes"}
+        </button>
+
+        <button
+          onClick={logout}
+          className="btn-outline w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50"
+        >
+          <LogOut className="h-4 w-4" />
+          Log out
         </button>
       </div>
     </div>

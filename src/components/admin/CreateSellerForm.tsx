@@ -9,6 +9,7 @@ import { notify } from "@/store/notify";
 export function CreateSellerForm() {
   const router = useRouter();
   const [form, setForm] = useState({
+    email: "",
     phone: "",
     full_name: "",
     store_name: "",
@@ -111,8 +112,8 @@ export function CreateSellerForm() {
       notify.error(json.error ?? "Something went wrong");
       return;
     }
-    notify.success(`Seller created — ${json.phone} can now log in and land on their dashboard.`);
-    setForm({ phone: "", full_name: "", store_name: "", city: "", state: "", pincode: "" });
+    notify.success(`Seller created — ${json.email} can now log in and land on their dashboard.`);
+    setForm({ email: "", phone: "", full_name: "", store_name: "", city: "", state: "", pincode: "" });
     setCoords(null);
     setGeoStatus("idle");
     setMapsLink("");
@@ -127,10 +128,11 @@ export function CreateSellerForm() {
       <div className="grid grid-cols-2 gap-2">
         <input
           className="input"
-          placeholder="10-digit mobile"
+          type="email"
+          placeholder="Login email"
           required
-          value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
         <input
           className="input"
@@ -139,6 +141,12 @@ export function CreateSellerForm() {
           onChange={(e) => setForm({ ...form, full_name: e.target.value })}
         />
       </div>
+      <input
+        className="input"
+        placeholder="Contact phone (10-digit, optional)"
+        value={form.phone}
+        onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+      />
       <input
         className="input"
         placeholder="Store name"

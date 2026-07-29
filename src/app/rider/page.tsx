@@ -14,7 +14,7 @@ export default async function RiderPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, full_name, phone")
     .eq("id", user.id)
     .single();
 
@@ -32,5 +32,11 @@ export default async function RiderPage() {
     );
   }
 
-  return <RiderDashboard name={profile?.full_name ?? "Partner"} />;
+  return (
+    <RiderDashboard
+      name={profile?.full_name ?? "Partner"}
+      email={user.email ?? null}
+      phone={profile?.phone ?? null}
+    />
+  );
 }

@@ -14,7 +14,8 @@ export default function AccountPage() {
   const supabase = createClient();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [phone, setPhone] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [contactPhone, setContactPhone] = useState<string | null>(null);
   const [role, setRole] = useState<string>("buyer");
   const [name, setName] = useState("");
   const [savedName, setSavedName] = useState("");
@@ -34,16 +35,17 @@ export default function AccountPage() {
         router.push("/login");
         return;
       }
-      setPhone(user.phone ?? null);
+      setEmail(user.email ?? null);
       const { data: p } = await supabase
         .from("profiles")
-        .select("role, full_name")
+        .select("role, full_name, phone")
         .eq("id", user.id)
         .single();
       if (p) {
         setRole(p.role);
         setName(p.full_name ?? "");
         setSavedName(p.full_name ?? "");
+        setContactPhone(p.phone ?? null);
       }
       setLoading(false);
     });
@@ -119,9 +121,15 @@ export default function AccountPage() {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-ink truncate">{savedName || "Not set"}</p>
             <p className="text-xs text-ink-soft mt-1 flex items-center gap-1">
-              <Phone className="h-3 w-3" />
-              {phone ? `+${phone}` : "No phone on file"}
+              <Mail className="h-3 w-3" />
+              {email ?? "No email on file"}
             </p>
+            {contactPhone && (
+              <p className="text-xs text-ink-soft mt-0.5 flex items-center gap-1">
+                <Phone className="h-3 w-3" />
+                +{contactPhone}
+              </p>
+            )}
           </div>
         </div>
 
