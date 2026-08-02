@@ -248,6 +248,17 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# Real email OTP (login/register): the default magic_link template only
+# shows a clickable link, not the {{ .Token }} code the app's OTP-code UI
+# asks users to type — this points local `supabase start` at the template
+# in supabase/templates/otp-email.html instead. For the hosted project this
+# repo's .env.local actually talks to, the equivalent change is made in
+# Dashboard → Authentication → Emails → Templates → Magic Link, this only
+# affects local dev.
+# [auth.email.template.magic_link]
+# subject = "Your GrabOn login code"
+# content_path = "./supabase/templates/otp-email.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

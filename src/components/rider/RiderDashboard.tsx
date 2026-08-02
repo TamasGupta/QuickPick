@@ -103,8 +103,13 @@ export function RiderDashboard({
     const channel = supabase
       .channel("rider-available-orders")
       .on(
+        // No filter: the orders_read_available_for_riders RLS policy (see
+        // migration 020) already scopes this to unclaimed placed/accepted/
+        // packed orders, and a status change out of that range (e.g. another
+        // rider claiming it) needs to trigger a refresh too so the card
+        // disappears from this list.
         "postgres_changes",
-        { event: "*", schema: "public", table: "orders", filter: "status=eq.packed" },
+        { event: "*", schema: "public", table: "orders" },
         refreshAvailable
       )
       .subscribe();
@@ -191,7 +196,7 @@ export function RiderDashboard({
                 ? "No active deliveries"
                 : "No completed deliveries yet"}
           </p>
-          <p className="mt-1 text-sm">New orders appear here as stores pack them.</p>
+          <p className="mt-1 text-sm">New orders appear here as soon as they're placed.</p>
         </div>
       ) : (
         <div className="stagger space-y-3">
@@ -387,11 +392,21 @@ function RiderOrderCard({
             </p>
           </div>
         </div>
-        <span
-          className={`badge ${isCod ? "bg-amber-100 text-amber-700" : "bg-brand-50 text-brand-700"}`}
-        >
-          {isCod ? "Collect COD" : "Prepaid"}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span
+            className={`badge ${isCod ? "bg-amber-100 text-amber-700" : "bg-brand-50 text-brand-700"}`}
+          >
+            {isCod ? "Collect COD" : "Prepaid"}
+          </span>
+          {/* Visible from the moment the order is placed, not just once
+              packed — see the "available" scope query in /api/rider/orders. */}
+          {tab === "available" && o.status !== "packed" && (
+            <span className="badge flex items-center gap-1 bg-gray-100 text-gray-500">
+              <Clock className="h-3 w-3" />
+              {o.status === "placed" ? "Order placed" : "Store is preparing"}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Earnings + total */}
@@ -472,13 +487,19 @@ function RiderOrderCard({
 
       {/* Actions */}
       {tab === "available" && (
-        <button
-          onClick={() => act("claim", o.id)}
-          disabled={busy}
-          className="btn-primary w-full"
-        >
-          {busy ? <Spinner /> : <Check className="h-4 w-4" />} Accept delivery
-        </button>
+        o.status === "packed" ? (
+          <button
+            onClick={() => act("claim", o.id)}
+            disabled={busy}
+            className="btn-primary w-full"
+          >
+            {busy ? <Spinner /> : <Check className="h-4 w-4" />} Accept delivery
+          </button>
+        ) : (
+          <div className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 py-2.5 text-sm font-medium text-ink-faint">
+            <Clock className="h-4 w-4" /> Not ready yet — waiting for the store to pack it
+          </div>
+        )
       )}
 
       {tab === "active" && o.status === "packed" && (
