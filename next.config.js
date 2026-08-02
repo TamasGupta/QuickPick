@@ -4,6 +4,9 @@ const withPWA = require("next-pwa")({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
+  // Custom source (push/notificationclick handlers, see worker/index.js)
+  // instead of next-pwa's auto-generated precache-only worker.
+  swSrc: "worker/index.js",
 });
 
 const nextConfig = {

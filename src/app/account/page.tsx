@@ -7,6 +7,7 @@ import { Phone, User as UserIcon, Check, Download, Info, ShieldCheck, FileText, 
 import { createClient } from "@/lib/supabase/client";
 import { SkelLine } from "@/components/skeletons";
 import { SavedAddresses } from "@/components/SavedAddresses";
+import { PushNotificationPrompt } from "@/components/PushNotificationPrompt";
 import { notify } from "@/store/notify";
 import { usePwaInstall } from "@/store/pwaInstall";
 
@@ -190,6 +191,14 @@ export default function AccountPage() {
           </div>
           <SavedAddresses />
         </>
+      )}
+
+      {/* Push notifications — buyers get order-status updates, sellers get
+          new-order alerts; not wired up for rider/admin yet. */}
+      {(role === "buyer" || role === "seller") && (
+        <PushNotificationPrompt
+          label={role === "seller" ? "Enable new-order notifications" : "Enable order notifications"}
+        />
       )}
 
       {/* App Installation */}

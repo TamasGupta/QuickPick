@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { withApiLogging } from "@/lib/apiLogger";
+import { sendPushToUser, ORDER_STATUS_PUSH_COPY } from "@/lib/push";
 import type { OrderStatus } from "@/lib/types";
 
 const ALLOWED: OrderStatus[] = [
@@ -38,12 +39,25 @@ export const POST = withApiLogging(
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("orders")
     .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", params.id);
+    .eq("id", params.id)
+    .select("buyer_id")
+    .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 403 });
+
+  const copy = ORDER_STATUS_PUSH_COPY[status];
+  if (copy && updated?.buyer_id) {
+    void sendPushToUser(updated.buyer_id, {
+      title: "Order update",
+      body: copy,
+      url: `/orders/${params.id}`,
+      tag: `order-${params.id}`,
+    });
+  }
+
   return NextResponse.json({ ok: true, status });
   }
 );

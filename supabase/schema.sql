@@ -301,6 +301,20 @@ create table if not exists product_image_cache (
 create index if not exists idx_product_image_cache_key on product_image_cache(cache_key);
 
 -- ------------------------------------------------------------
+-- PUSH SUBSCRIPTIONS (Web Push — one row per subscribed browser/device)
+-- See lib/push.ts and migration 019 for the full reasoning.
+-- ------------------------------------------------------------
+create table if not exists push_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_push_subscriptions_user on push_subscriptions(user_id);
+
+-- ------------------------------------------------------------
 -- ATOMIC STOCK DECREMENT (called on payment success / COD accept)
 -- Decrements stock for each item; raises if insufficient.
 -- ------------------------------------------------------------
@@ -334,6 +348,7 @@ alter table upload_jobs  enable row level security;
 alter table product_image_cache enable row level security;
 alter table ledger_entries enable row level security;
 alter table order_status_events enable row level security;
+alter table push_subscriptions enable row level security;
 
 -- PROFILES: user sees/edits own; admin sees all
 drop policy if exists "profiles_self" on profiles;
@@ -403,6 +418,12 @@ drop policy if exists "addresses_own" on addresses;
 create policy "addresses_own" on addresses
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+-- PUSH_SUBSCRIPTIONS: owner only. Sending always goes through the
+-- service-role client (bypasses RLS) to look up a target user's rows.
+drop policy if exists "push_subscriptions_own" on push_subscriptions;
+create policy "push_subscriptions_own" on push_subscriptions
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
 -- ORDERS: buyer sees own; seller sees orders for their store; admin all
 drop policy if exists "orders_read" on orders;
 create policy "orders_read" on orders
@@ -440,6 +461,17 @@ create policy "orders_update_admin" on orders
   for update
   using (is_admin())
   with check (is_admin());
+
+-- Lets riders see unclaimed orders from placed/accepted through packed
+-- (not just packed) via Realtime, matching what /api/rider/orders?scope=available
+-- already returns via the service-role client — see migrations 017 and 020.
+drop policy if exists "orders_read_available_for_riders" on orders;
+create policy "orders_read_available_for_riders" on orders
+  for select using (
+    status in ('placed', 'accepted', 'packed')
+    and rider_id is null
+    and exists (select 1 from profiles where id = auth.uid() and role = 'rider')
+  );
 
 create or replace function orders_guard_protected_columns()
 returns trigger language plpgsql as $$

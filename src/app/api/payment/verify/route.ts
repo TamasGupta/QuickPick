@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { verifyPaymentSignature } from "@/lib/razorpay";
 import { withApiLogging } from "@/lib/apiLogger";
+import { sendPushToUser } from "@/lib/push";
 
 // POST /api/payment/verify — verify Razorpay signature, mark order paid,
 // and atomically decrement stock. Server-side signature check is the
@@ -28,7 +29,7 @@ export const POST = withApiLogging("/api/payment/verify", async (req: Request) =
   // Confirm this order belongs to the user and matches the razorpay order.
   const { data: order } = await service
     .from("orders")
-    .select("id, buyer_id, razorpay_order_id, payment_status")
+    .select("id, buyer_id, razorpay_order_id, payment_status, seller_id, total")
     .eq("id", order_id)
     .single();
   if (!order || order.buyer_id !== user.id || order.razorpay_order_id !== razorpay_order_id) {
@@ -57,6 +58,20 @@ export const POST = withApiLogging("/api/payment/verify", async (req: Request) =
       status: "placed",
     })
     .eq("id", order.id);
+
+  // This is the moment an online order actually becomes real/actionable for
+  // the seller — the row existed before this with payment_status "pending",
+  // which SellerNav's badge count (and the /api/orders COD-only push hook)
+  // both deliberately exclude.
+  const { data: seller } = await service.from("sellers").select("owner_id").eq("id", order.seller_id).single();
+  if (seller?.owner_id) {
+    void sendPushToUser(seller.owner_id, {
+      title: "New order received",
+      body: `A new order worth ${order.total} is waiting to be accepted.`,
+      url: "/seller/orders",
+      tag: `order-${order.id}`,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 });
