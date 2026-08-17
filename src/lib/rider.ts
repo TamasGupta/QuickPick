@@ -16,6 +16,7 @@ export interface RiderOrder {
   id: string;
   status: string;
   payment_status: string;
+  delivery_payment_method: "cash" | "online" | null;
   total: number;
   subtotal: number;
   delivery_fee: number;
@@ -84,6 +85,7 @@ export async function enrichOrders(
       id: o.id as string,
       status: o.status as string,
       payment_status: o.payment_status as string,
+      delivery_payment_method: (o.delivery_payment_method as "cash" | "online" | null) ?? null,
       total: o.total as number,
       subtotal: o.subtotal as number,
       delivery_fee: o.delivery_fee as number,

@@ -72,6 +72,14 @@ const LocationPicker = dynamic(() => import("@/components/LocationPicker").then(
 // since sellers/riders display it on their order cards.
 const DELIVERY_SLOT = "Now (10–20 min)";
 
+// TEMPORARY: checkout is COD-only — Razorpay now runs at the DOOR instead
+// (buyer picks cash or a QR scan with the rider, see RiderDashboard.tsx /
+// /api/rider/payment/method / /api/webhooks/razorpay), not at order time.
+// The online-at-checkout branch below is commented out rather than deleted
+// so it can come back if that decision changes; see /api/payment/create and
+// /api/payment/verify for the matching server-side halves.
+const ONLINE_CHECKOUT_ENABLED = false;
+
 declare global {
   interface Window {
     Razorpay?: any;
@@ -87,7 +95,7 @@ export default function CheckoutPage() {
   const [loadingAddr, setLoadingAddr] = useState(true);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState<string>("");
-  const [pay, setPay] = useState<"online" | "cod">("online");
+  const [pay] = useState<"online" | "cod">("cod");
   const [placing, setPlacing] = useState(false);
   const [showAddr, setShowAddr] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -156,8 +164,9 @@ export default function CheckoutPage() {
   }
 
   useEffect(() => {
-    // Load Razorpay checkout script once.
-    if (!document.getElementById("rzp-sdk")) {
+    // Razorpay checkout.js is only needed for the online-at-checkout branch
+    // below, which is currently disabled — see ONLINE_CHECKOUT_ENABLED.
+    if (ONLINE_CHECKOUT_ENABLED && !document.getElementById("rzp-sdk")) {
       const s = document.createElement("script");
       s.id = "rzp-sdk";
       s.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -336,7 +345,7 @@ export default function CheckoutPage() {
       const order = await res.json();
       if (!res.ok) throw new Error(order.error || "Failed to create order");
 
-      if (pay === "cod") {
+      if (!ONLINE_CHECKOUT_ENABLED || pay === "cod") {
         clear();
         router.push(`/orders/${order.id}?placed=1`);
         return;
@@ -588,19 +597,29 @@ export default function CheckoutPage() {
         )
       )}
 
-      {/* Payment */}
+      {/* Payment — resolved at the door, not at checkout (see
+          ONLINE_CHECKOUT_ENABLED). The buyer picks cash or a QR scan with
+          the delivery partner when the order arrives.
+      {ONLINE_CHECKOUT_ENABLED && (
+        <section className="card p-4">
+          <h2 className="font-bold">Payment</h2>
+          <div className="mt-3 space-y-2 text-sm">
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={pay === "online"} onChange={() => setPay("online")} />
+              Pay online (UPI / Card / Wallet) via Razorpay
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={pay === "cod"} onChange={() => setPay("cod")} />
+              Cash on Delivery
+            </label>
+          </div>
+        </section>
+      )} */}
       <section className="card p-4">
         <h2 className="font-bold">Payment</h2>
-        <div className="mt-3 space-y-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input type="radio" checked={pay === "online"} onChange={() => setPay("online")} />
-            Pay online (UPI / Card / Wallet) via Razorpay
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" checked={pay === "cod"} onChange={() => setPay("cod")} />
-            Cash on Delivery
-          </label>
-        </div>
+        <p className="mt-2 text-sm text-ink-soft">
+          Pay by cash or scan a QR code with your delivery partner when your order arrives.
+        </p>
       </section>
 
       {/* Summary */}

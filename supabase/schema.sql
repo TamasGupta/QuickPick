@@ -193,6 +193,12 @@ create table if not exists orders (
   razorpay_payment_id text,
   rider_id uuid references profiles(id) on delete set null,
   delivery_otp text,
+  -- How the buyer actually paid at the door (checkout is COD-only now — see
+  -- migration 021). 'online' means a QR scan via Razorpay (platform
+  -- account), confirmed by the webhook flipping payment_status to 'paid'.
+  -- 'cash' leaves payment_status at 'cod' through delivery.
+  delivery_payment_method text check (delivery_payment_method in ('cash', 'online')),
+  razorpay_qr_id text,
   -- Seller's note when fully cancelling (see migration 013). Per-item stock
   -- issues live on order_items instead (out_of_stock/oos_reason).
   cancel_reason text,
@@ -249,9 +255,15 @@ create trigger order_status_events_trg
 -- ------------------------------------------------------------
 -- PAYOUT LEDGER
 -- Two rows per delivered order, only for money that actually needs to
--- change hands (see migration 011 for the full reasoning):
---   online -> (admin -> seller: subtotal), (admin -> rider: delivery_fee)
---   cod    -> (seller -> rider: delivery_fee), (seller -> admin: other_charges)
+-- change hands (see migration 011 for the original reasoning, migration 021
+-- for the cash-at-door direction flip once checkout stopped taking online
+-- payments):
+--   paid (online QR at door, or legacy checkout-time online) ->
+--     (admin -> seller: subtotal), (admin -> rider: delivery_fee)
+--   cod (buyer paid the rider cash directly) ->
+--     (rider -> seller: subtotal), (rider -> admin: other_charges)
+--     — the rider keeps delivery_fee out of what they collected, no entry
+--     needed for money they already hold.
 -- Inserted by the app (service client) when an order flips to 'delivered'.
 -- ------------------------------------------------------------
 create table if not exists ledger_entries (
@@ -491,6 +503,8 @@ begin
     or new.razorpay_payment_id is distinct from old.razorpay_payment_id
     or new.rider_id is distinct from old.rider_id
     or new.delivery_otp is distinct from old.delivery_otp
+    or new.delivery_payment_method is distinct from old.delivery_payment_method
+    or new.razorpay_qr_id is distinct from old.razorpay_qr_id
     or new.created_at is distinct from old.created_at
   then
     raise exception 'Cannot modify protected order fields directly';

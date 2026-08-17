@@ -99,6 +99,7 @@ export interface Order {
   total: number;
   delivery_slot: string | null;
   delivery_otp: string | null;
+  delivery_payment_method: "cash" | "online" | null;
   cancel_reason: string | null;
   created_at: string;
 }

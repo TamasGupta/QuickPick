@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail,
+  QrCode,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { createClient } from "@/lib/supabase/client";
@@ -377,6 +378,63 @@ function RiderOrderCard({
   const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
   const isCod = o.payment_status === "cod";
 
+  // Payment-at-the-door state (checkout is COD-only — see
+  // /api/rider/payment/method). Only meaningful once out_for_delivery.
+  const [payMethod, setPayMethod] = useState<"cash" | "online" | null>(o.delivery_payment_method);
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
+  // Local flag the poll below sets the moment it notices the webhook landed
+  // — `o.payment_status` itself only catches up once the parent list
+  // refetches (Refresh button, or after an action). ORed together so
+  // whichever notices first wins.
+  const [polledPaid, setPolledPaid] = useState(false);
+  const paid = o.payment_status === "paid" || polledPaid;
+
+  const atDelivery = tab === "active" && o.status === "out_for_delivery";
+  const needsPaymentChoice = atDelivery && !paid && payMethod === null;
+  const awaitingQrPayment = atDelivery && !paid && payMethod === "online";
+  const paymentResolved = paid || payMethod === "cash";
+
+  async function chooseMethod(method: "cash" | "online") {
+    setPayBusy(true);
+    const res = await fetch("/api/rider/payment/method", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: o.id, method }),
+    });
+    const json = await res.json();
+    setPayBusy(false);
+    if (!res.ok) {
+      notify.error(json.error ?? "Couldn't set payment method");
+      return;
+    }
+    setPayMethod(method);
+    setQrImage(method === "online" ? json.image_url : null);
+  }
+
+  // Redisplay an already-generated QR (e.g. rider navigated away and back)
+  // instead of losing it and having to start over.
+  useEffect(() => {
+    if (o.delivery_payment_method === "online" && o.payment_status === "cod") {
+      chooseMethod("online");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Poll while a QR is up and awaiting a scan — see /api/rider/payment/status.
+  // Confirmation arrives via the Razorpay webhook, not this tab, so there's
+  // nothing to subscribe to; a short poll is the simplest way to notice it.
+  useEffect(() => {
+    if (!awaitingQrPayment) return;
+    const t = setInterval(async () => {
+      const res = await fetch(`/api/rider/payment/status?order_id=${o.id}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.payment_status === "paid") setPolledPaid(true);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [awaitingQrPayment, o.id]);
+
   return (
     <div className="card space-y-3 p-4">
       {/* Top row */}
@@ -512,8 +570,56 @@ function RiderOrderCard({
         </button>
       )}
 
-      {tab === "active" && o.status === "out_for_delivery" && (
+      {/* Payment step — checkout is COD-only, so this is where it actually
+          gets resolved. See /api/rider/payment/method. */}
+      {needsPaymentChoice && (
         <div className="space-y-2">
+          <p className="text-center text-sm font-medium text-ink-soft">How is the buyer paying?</p>
+          <div className="flex gap-2">
+            <button onClick={() => chooseMethod("cash")} disabled={payBusy} className="btn-outline flex-1">
+              {payBusy ? <Spinner /> : <IndianRupee className="h-4 w-4" />} Cash
+            </button>
+            <button onClick={() => chooseMethod("online")} disabled={payBusy} className="btn-outline flex-1">
+              {payBusy ? <Spinner /> : <QrCode className="h-4 w-4" />} Show QR
+            </button>
+          </div>
+        </div>
+      )}
+
+      {awaitingQrPayment && (
+        <div className="space-y-2 rounded-xl border border-gray-100 p-3 text-center">
+          {qrImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={qrImage} alt="Scan to pay" className="mx-auto h-40 w-40" />
+          ) : (
+            <div className="flex justify-center py-6">
+              <Spinner className="h-6 w-6 border-brand-200 border-t-brand-600" />
+            </div>
+          )}
+          <p className="flex items-center justify-center gap-1.5 text-sm font-medium text-ink-soft">
+            <Spinner className="h-3.5 w-3.5" /> Waiting for payment…
+          </p>
+          <button
+            onClick={() => chooseMethod("cash")}
+            disabled={payBusy}
+            className="text-xs font-semibold text-brand-700 underline"
+          >
+            Switch to cash instead
+          </button>
+        </div>
+      )}
+
+      {tab === "active" && o.status === "out_for_delivery" && paymentResolved && (
+        <div className="space-y-2">
+          {paid ? (
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-700">
+              <Check className="h-3.5 w-3.5" /> Payment received online
+            </p>
+          ) : (
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+              <IndianRupee className="h-3.5 w-3.5" /> Collect {inr(o.total)} cash from the buyer
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <input
               inputMode="numeric"

@@ -35,11 +35,14 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const body = await req.json();
-  const { seller_id, address_id, delivery_slot, payment_method, items } = body as {
+  // Checkout is COD-only now (payment is resolved by the rider at the door
+  // instead — see /api/rider/payment/method) — payment_method is no longer
+  // read from the client at all, never trust it for what used to gate
+  // payment_status/stock-decrement/the seller push below.
+  const { seller_id, address_id, delivery_slot, items } = body as {
     seller_id: string;
     address_id: string;
     delivery_slot: string;
-    payment_method: "online" | "cod";
     items: IncomingItem[];
   };
 
@@ -144,7 +147,7 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
       other_charges: OTHER_CHARGES,
       total,
       status: "placed",
-      payment_status: payment_method === "cod" ? "cod" : "pending",
+      payment_status: "cod",
       delivery_otp,
     })
     .select()
@@ -157,19 +160,15 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   );
   if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
 
-  // COD: reserve stock immediately.
-  if (payment_method === "cod") {
-    await service.rpc("decrement_stock", { p_order_id: order.id });
-  }
+  // Every order is COD at creation now — reserve stock immediately (whether
+  // the buyer ends up paying cash or scanning a QR at the door is resolved
+  // later and doesn't change this).
+  await service.rpc("decrement_stock", { p_order_id: order.id });
 
-  // Online orders aren't real yet at this point (payment_status: "pending"
-  // until /api/payment/verify confirms it) — only a COD order is genuinely
-  // new/actionable for the seller right now, matching the same
-  // payment_status != 'pending' filter SellerNav's badge count already uses.
-  if (payment_method === "cod" && seller?.owner_id) {
+  if (seller?.owner_id) {
     void sendPushToUser(seller.owner_id, {
       title: "New order received",
-      body: `A new COD order worth ${total} is waiting to be accepted.`,
+      body: `A new order worth ${total} is waiting to be accepted.`,
       url: "/seller/orders",
       tag: `order-${order.id}`,
     });

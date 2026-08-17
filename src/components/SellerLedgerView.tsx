@@ -34,7 +34,7 @@ export function SellerLedgerView({
     <div>
       <div className="grid grid-cols-3 gap-3">
         <div className="card p-4">
-          <p className="text-xs text-gray-500">You will get from Admin</p>
+          <p className="text-xs text-gray-500">You'll be paid</p>
           <p className="mt-1 text-lg font-bold text-brand-700">{inr(owedToYouPending)}</p>
         </div>
         <div className="card p-4">
@@ -47,11 +47,16 @@ export function SellerLedgerView({
         </div>
       </div>
 
+      {/* Buyers now pay the rider directly at the door (cash, or a QR scan
+          that goes straight to the platform) — a seller is never handed COD
+          cash to pass on anymore, so this section only ever has rows from
+          orders delivered before that change. Kept rather than removed so
+          those old entries stay visible/settleable. */}
       <div className="mt-5">
         <h2 className="mb-2 font-bold">Delivery partner payments</h2>
         <p className="mb-2 text-xs text-ink-faint">
-          You collect the full COD amount from each rider's deliveries — pay them their delivery-fee share directly,
-          then mark it received here. It'll show as paid on their end too.
+          Older orders where you collected COD cash from a rider — pay them their delivery-fee share directly, then
+          mark it received here. It'll show as paid on their end too.
         </p>
         <RiderPayoutsPanel entries={riderDues} onSettle={settle} busyKey={busyKey} />
       </div>
@@ -62,7 +67,11 @@ export function SellerLedgerView({
       </div>
 
       <div className="mt-5">
-        <h2 className="mb-2 font-bold">You will get from Admin — online order payouts (by day)</h2>
+        <h2 className="mb-2 font-bold">You'll be paid — order payouts (by day)</h2>
+        <p className="mb-2 text-xs text-ink-faint">
+          From the platform for online/QR-paid orders, or from your delivery partner for orders where they collected
+          cash directly from the buyer.
+        </p>
         <DayGroupedLedger entries={owedToYou} canSettle={false} onSettle={settle} busyKey={busyKey} />
       </div>
     </div>

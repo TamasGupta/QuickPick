@@ -66,7 +66,9 @@ export const POST = withApiLogging(
     // Verify the buyer's delivery OTP before completing.
     const { data: order } = await service
       .from("orders")
-      .select("delivery_otp, rider_id, seller_id, buyer_id, status, payment_status, subtotal, delivery_fee, other_charges")
+      .select(
+        "delivery_otp, rider_id, seller_id, buyer_id, status, payment_status, delivery_payment_method, subtotal, delivery_fee, other_charges"
+      )
       .eq("id", orderId)
       .single();
     if (!order || order.rider_id !== user.id || order.status !== "out_for_delivery") {
@@ -75,35 +77,55 @@ export const POST = withApiLogging(
     if (!body.otp || body.otp.trim() !== order.delivery_otp) {
       return NextResponse.json({ error: "Incorrect delivery OTP" }, { status: 422 });
     }
-    // Cash collected on delivery — payment_status stays "cod" so riders see
-    // the payment method in completed orders. The "delivered" status indicates completion.
-    const isCod = order.payment_status === "cod";
+
+    // Checkout is COD-only now — payment is resolved at the door instead
+    // (see /api/rider/payment/method). Delivery can't complete until that's
+    // settled: either the buyer paid cash (delivery_payment_method flips to
+    // 'cash' immediately, no further wait) or the QR was scanned and the
+    // webhook confirmed it (payment_status flips to 'paid', so stillCod is
+    // false by the time we get here).
+    const stillCod = order.payment_status === "cod";
+    if (stillCod && order.delivery_payment_method !== "cash") {
+      return NextResponse.json(
+        {
+          error:
+            "Choose how the buyer is paying — cash, or wait for the QR payment to confirm — before completing delivery.",
+        },
+        { status: 409 }
+      );
+    }
+
     const patch: Record<string, unknown> = { status: "delivered", updated_at: now() };
     const { error } = await service.from("orders").update(patch).eq("id", orderId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     // Payout ledger — exactly the money that needs to change hands now that
-    // the order is delivered (see migration 011 for the full split logic).
-    // Online: the platform already holds the full `total`, so it owes the
-    // seller + rider their shares. COD: the rider just handed the seller the
-    // full `total` in cash, so the seller now owes the rider + platform.
+    // the order is delivered (see migration 011 for the original reasoning,
+    // migration 021 for why the cash case's direction flipped once checkout
+    // stopped taking online payments). Paid (QR scanned at the door, or a
+    // legacy checkout-time online order) — the platform already holds the
+    // full `total`, so it owes the seller + rider their shares. Still cod at
+    // delivery — the buyer paid the RIDER cash directly, so the rider now
+    // owes the seller + platform their shares; they keep `delivery_fee` out
+    // of what they collected as their own earning, no entry needed for
+    // money they already hold.
     const orderRef = orderId.slice(0, 8);
     const base = { order_id: orderId, seller_id: order.seller_id, rider_id: order.rider_id };
-    const entries = isCod
+    const entries = stillCod
       ? [
           {
             ...base,
-            from_party: "seller",
-            to_party: "rider",
-            amount: order.delivery_fee,
-            label: `Delivery payout — order #${orderRef} (COD collected by seller)`,
+            from_party: "rider",
+            to_party: "seller",
+            amount: order.subtotal,
+            label: `Product payout — order #${orderRef} (cash collected by rider)`,
           },
           {
             ...base,
-            from_party: "seller",
+            from_party: "rider",
             to_party: "admin",
             amount: order.other_charges,
-            label: `Platform fee — order #${orderRef} (COD collected by seller)`,
+            label: `Platform fee — order #${orderRef} (cash collected by rider)`,
           },
         ]
       : [
