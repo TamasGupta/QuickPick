@@ -164,7 +164,7 @@ export default async function HomePage({
       )}
 
       {/* Categories */}
-      <section>
+      {/* <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-extrabold text-ink">Shop by category</h2>
         </div>
@@ -184,7 +184,7 @@ export default async function HomePage({
                   }`}
                 >
                   {img ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
+                     eslint-disable-next-line @next/next/no-img-element 
                     <img
                       src={img}
                       alt={c.name}
@@ -202,7 +202,7 @@ export default async function HomePage({
             );
           })}
         </div>
-      </section>
+      </section> */}
 
       {/* Products */}
       <section id="products">
