@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { withApiLogging } from "@/lib/apiLogger";
+import { sendPushToUser, ORDER_STATUS_PUSH_COPY } from "@/lib/push";
 
 const now = () => new Date().toISOString();
 
@@ -32,7 +33,7 @@ export const POST = withApiLogging(
 
     const { data: order } = await service
       .from("orders")
-      .select("id, seller_id, status")
+      .select("id, seller_id, buyer_id, status")
       .eq("id", params.id)
       .single();
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -58,6 +59,14 @@ export const POST = withApiLogging(
         .update({ status: "cancelled", cancel_reason: body.reason.trim(), updated_at: now() })
         .eq("id", order.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      void sendPushToUser(order.buyer_id, {
+        title: "Order cancelled",
+        body: ORDER_STATUS_PUSH_COPY.cancelled!,
+        url: `/orders/${order.id}`,
+        tag: `order-${order.id}`,
+      });
+
       return NextResponse.json({ ok: true, status: "cancelled" });
     }
 
@@ -92,6 +101,13 @@ export const POST = withApiLogging(
       .update({ status: "action_required", updated_at: now() })
       .eq("id", order.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    void sendPushToUser(order.buyer_id, {
+      title: "Action needed on your order",
+      body: "One or more items in your order are out of stock. Tap to review and continue.",
+      url: `/orders/${order.id}`,
+      tag: `order-${order.id}`,
+    });
 
     return NextResponse.json({ ok: true, status: "action_required" });
   }

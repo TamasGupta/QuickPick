@@ -25,8 +25,15 @@ export const GET = withApiLogging("/api/rider/orders", async (req: Request) => {
     .order("created_at", { ascending: scope === "available" });
 
   if (scope === "available") {
-    // Packed & unclaimed, and already paid (online) or COD.
-    query = query.eq("status", "packed").is("rider_id", null);
+    // Unclaimed, from the start of the pipeline (placed/accepted/packed) so
+    // riders can see what's coming before the seller packs it — not just
+    // claimable (packed) orders. Claiming itself still requires 'packed'
+    // (enforced atomically in /api/rider/claim), and already paid (online)
+    // or COD.
+    query = query
+      .in("status", ["placed", "accepted", "packed"])
+      .is("rider_id", null)
+      .neq("payment_status", "pending");
   } else if (scope === "active") {
     query = query.eq("rider_id", user.id).in("status", ["packed", "out_for_delivery"]);
   } else {

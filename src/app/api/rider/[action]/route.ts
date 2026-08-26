@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { requireRider } from "@/lib/rider";
 import { withApiLogging } from "@/lib/apiLogger";
+import { sendPushToUser, ORDER_STATUS_PUSH_COPY } from "@/lib/push";
 
 const now = () => new Date().toISOString();
 
@@ -47,9 +48,17 @@ export const POST = withApiLogging(
       .eq("id", orderId)
       .eq("rider_id", user.id)
       .eq("status", "packed")
-      .select("id");
+      .select("id, buyer_id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data?.length) return NextResponse.json({ error: "Cannot pick up this order" }, { status: 409 });
+
+    void sendPushToUser(data[0].buyer_id, {
+      title: "Order update",
+      body: ORDER_STATUS_PUSH_COPY.out_for_delivery!,
+      url: `/orders/${orderId}`,
+      tag: `order-${orderId}`,
+    });
+
     return NextResponse.json({ ok: true });
   }
 
@@ -57,7 +66,7 @@ export const POST = withApiLogging(
     // Verify the buyer's delivery OTP before completing.
     const { data: order } = await service
       .from("orders")
-      .select("delivery_otp, rider_id, seller_id, status, payment_status, subtotal, delivery_fee, other_charges")
+      .select("delivery_otp, rider_id, seller_id, buyer_id, status, payment_status, subtotal, delivery_fee, other_charges")
       .eq("id", orderId)
       .single();
     if (!order || order.rider_id !== user.id || order.status !== "out_for_delivery") {
@@ -115,6 +124,13 @@ export const POST = withApiLogging(
         ];
     const { error: ledgerErr } = await service.from("ledger_entries").insert(entries);
     if (ledgerErr) console.error("[rider/deliver] ledger insert failed", ledgerErr.message);
+
+    void sendPushToUser(order.buyer_id, {
+      title: "Order delivered",
+      body: ORDER_STATUS_PUSH_COPY.delivered!,
+      url: `/orders/${orderId}`,
+      tag: `order-${orderId}`,
+    });
 
     return NextResponse.json({ ok: true });
   }

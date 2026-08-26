@@ -5,6 +5,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
 import { SellerStatsLive } from "@/components/SellerStatsLive";
+import { PushNotificationPrompt } from "@/components/PushNotificationPrompt";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,10 @@ export default async function SellerDashboard() {
         storeStatus={seller.status}
         initial={{ productCount: productCount ?? 0, orderCount: orders?.length ?? 0, revenue, pending }}
       />
+
+      <div className="mt-4">
+        <PushNotificationPrompt label="Enable new-order notifications" />
+      </div>
     </div>
   );
 }

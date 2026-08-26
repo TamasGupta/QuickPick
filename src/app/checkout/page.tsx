@@ -216,6 +216,15 @@ export default function CheckoutPage() {
   }, [addressId, addresses, sellerLoc]);
 
   const outOfRange = distanceKm !== null && distanceKm > MAX_DELIVERY_RADIUS_KM;
+  // A buyer who typed their address without ever opening the map has no
+  // lat/lng on the row — distanceKm stays null in that case, which used to
+  // mean outOfRange silently evaluated false and let the order straight
+  // through with the delivery radius never actually checked (server-side
+  // had the same gap — see /api/orders). Only meaningful once we actually
+  // know where the seller is; if the seller itself has no pinned location
+  // there's nothing to compare against regardless of what the buyer did.
+  const selectedAddr = addresses.find((a) => a.id === addressId);
+  const needsPin = !!sellerLoc && !!selectedAddr && (selectedAddr.lat == null || selectedAddr.lng == null);
   // When storeHours is null (not yet fetched / no hours configured) we don't block.
   const storeClosed = storeHours !== null && storeHours.is_open === false;
 
@@ -307,6 +316,7 @@ export default function CheckoutPage() {
 
   async function placeOrder() {
     if (!addressId) return notify.error("Please select a delivery address.");
+    if (needsPin) return notify.error("Please pin your exact delivery location before placing this order.");
     if (outOfRange) return notify.error("This store doesn't deliver to your address.");
     if (storeClosed) return notify.error("This store is currently closed.");
     setPlacing(true);
@@ -532,6 +542,16 @@ export default function CheckoutPage() {
         )}
       </section>
 
+      {needsPin && (
+        <div className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-700">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            This address hasn't been pinned on the map yet, so we can't confirm it's within
+            delivery range. Edit the address and tap "Pin exact location" to continue.
+          </span>
+        </div>
+      )}
+
       {outOfRange && (
         <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -593,7 +613,7 @@ export default function CheckoutPage() {
         </div>
       </section>
 
-      <button className="btn-primary w-full" disabled={placing || outOfRange || storeClosed} onClick={placeOrder}>
+      <button className="btn-primary w-full" disabled={placing || needsPin || outOfRange || storeClosed} onClick={placeOrder}>
         {placing ? "Placing order…" : pay === "cod" ? `Place order · ${inr(total)}` : `Pay ${inr(total)}`}
       </button>
     </div>

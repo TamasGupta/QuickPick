@@ -1,0 +1,44 @@
+<!--
+  Paste this into: Supabase Dashboard → Authentication → Emails → Templates → Magic Link
+
+  Reference copy only — Supabase's hosted template editor is where this
+  actually takes effect for the live project; this file isn't read by the
+  app or by `supabase start` unless supabase/config.toml's
+  [auth.email.template.magic_link] is pointed at it (see the commented
+  example already in config.toml for the "invite" template).
+
+  {{ .Token }} is the 6-digit OTP code the login/register pages ask the
+  user to type — without it, the default template only shows a clickable
+  link, which doesn't match this app's OTP-code UI.
+
+  Logo: references the real app icon (public/icons/icon-192.png, the same
+  PWA icon in manifest.json) at its production URL — email clients can't
+  fetch from localhost, so this must be a real publicly-reachable URL.
+  https://grabon.vercel.app is this app's fallback production URL (see
+  layout.tsx's metadataBase) — swap it if your actual deployed domain
+  differs.
+-->
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+  <div style="text-align: center; margin-bottom: 24px;">
+    <img
+      src="https://grabon.vercel.app/icons/icon-192.png"
+      alt="GrabOn"
+      width="48"
+      height="48"
+      style="display: inline-block; width: 48px; height: 48px; border-radius: 14px;"
+    />
+  </div>
+
+  <h1 style="font-size: 20px; font-weight: 800; color: #111827; text-align: center; margin: 0 0 8px;">Your GrabOn login code</h1>
+  <p style="font-size: 14px; color: #6b7280; text-align: center; margin: 0 0 24px;">
+    Enter this code to continue. It expires in 1 hour.
+  </p>
+
+  <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 24px;">
+    <span style="font-size: 32px; font-weight: 800; letter-spacing: 0.3em; color: #7c3aed;">{{ .Token }}</span>
+  </div>
+
+  <p style="font-size: 12px; color: #9ca3af; text-align: center; margin: 0;">
+    If you didn't request this, you can safely ignore this email.
+  </p>
+</div>

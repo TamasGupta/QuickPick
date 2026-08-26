@@ -3,6 +3,7 @@ import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/serv
 import { DELIVERY_FEE, OTHER_CHARGES, MAX_CART_ITEMS } from "@/lib/utils";
 import { withApiLogging } from "@/lib/apiLogger";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
+import { sendPushToUser } from "@/lib/push";
 
 interface IncomingItem {
   product_id: string;
@@ -52,14 +53,25 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   const service = createServiceSupabase();
 
   // Enforce the delivery radius. Never trust a client-computed distance —
-  // re-fetch both points and recompute server-side. If either the seller or
-  // the buyer's address has no pinned location, we can't verify distance, so
-  // the order is allowed through rather than blocking on missing data.
+  // re-fetch both points and recompute server-side.
   const [{ data: seller }, { data: address }] = await Promise.all([
-    service.from("sellers").select("lat, lng, timezone").eq("id", seller_id).single(),
+    service.from("sellers").select("lat, lng, timezone, owner_id, store_name").eq("id", seller_id).single(),
     service.from("addresses").select("lat, lng").eq("id", address_id).eq("user_id", user.id).single(),
   ]);
-  if (seller?.lat != null && seller?.lng != null && address?.lat != null && address?.lng != null) {
+  if (seller?.lat != null && seller?.lng != null) {
+    // The seller's own location is known, so distance CAN be verified — a
+    // buyer address with no pin (typed manually, map never opened) used to
+    // silently skip this whole check and let the order through with the
+    // delivery radius never actually enforced. Require a pin instead of
+    // treating "we don't know" as "assume it's fine" — same bug existed
+    // client-side in checkout/page.tsx's outOfRange check (distanceKm stays
+    // null for an unpinned address), fixed there too.
+    if (address?.lat == null || address?.lng == null) {
+      return NextResponse.json(
+        { error: "Please pin your exact delivery location before placing this order." },
+        { status: 400 }
+      );
+    }
     const distanceKm = haversineKm(
       { lat: seller.lat, lng: seller.lng },
       { lat: address.lat, lng: address.lng }
@@ -73,6 +85,9 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
       );
     }
   }
+  // If the seller itself has no pinned location, there's nothing to verify
+  // distance against regardless of the buyer's address — that's a
+  // seller/admin setup gap, not something to block a buyer's order over.
 
   // Store-hours gate — authoritative check runs in Postgres so tz math is
   // correct regardless of the server runtime's local timezone (Vercel = UTC).
@@ -145,6 +160,19 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   // COD: reserve stock immediately.
   if (payment_method === "cod") {
     await service.rpc("decrement_stock", { p_order_id: order.id });
+  }
+
+  // Online orders aren't real yet at this point (payment_status: "pending"
+  // until /api/payment/verify confirms it) — only a COD order is genuinely
+  // new/actionable for the seller right now, matching the same
+  // payment_status != 'pending' filter SellerNav's badge count already uses.
+  if (payment_method === "cod" && seller?.owner_id) {
+    void sendPushToUser(seller.owner_id, {
+      title: "New order received",
+      body: `A new COD order worth ${total} is waiting to be accepted.`,
+      url: "/seller/orders",
+      tag: `order-${order.id}`,
+    });
   }
 
   return NextResponse.json({ id: order.id, total });
