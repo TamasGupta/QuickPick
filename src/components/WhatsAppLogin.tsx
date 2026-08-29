@@ -47,33 +47,6 @@ export function WhatsAppLogin({
     return next;
   };
 
-  const afterVerified = async (userId: string) => {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, role")
-      .eq("id", userId)
-      .single();
-
-    if (!profile?.full_name) {
-      const typedName = name.trim();
-      if (typedName) {
-        await supabase
-          .from("profiles")
-          .update({ full_name: typedName })
-          .eq("id", userId);
-        router.replace(destinationFor(profile?.role));
-        router.refresh();
-        return;
-      }
-      setLoading(false);
-      setStep("name");
-      return;
-    }
-
-    router.replace(destinationFor(profile.role));
-    router.refresh();
-  };
-
   const handleSendOtp = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError(null);
@@ -100,6 +73,9 @@ export function WhatsAppLogin({
     } catch (err) {
       setLoading(false);
       setError((err as Error).message ?? "Failed to send OTP");
+    } finally {
+      // Safety net: ensure loading is reset if step didn't change
+      if (step === "phone") setLoading(false);
     }
   };
 
@@ -131,6 +107,35 @@ export function WhatsAppLogin({
     }
   };
 
+  const afterVerified = async (userId: string) => {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, role")
+      .eq("id", userId)
+      .single();
+
+    if (!profile?.full_name) {
+      const typedName = name.trim();
+      if (typedName) {
+        await supabase
+          .from("profiles")
+          .update({ full_name: typedName })
+          .eq("id", userId);
+        router.replace(destinationFor(profile?.role));
+        router.refresh();
+        return;
+      }
+      setLoading(false);
+      setStep("name");
+      return;
+    }
+
+    // Ensure loading is reset before navigation (in case navigation is delayed)
+    setLoading(false);
+    router.replace(destinationFor(profile.role));
+    router.refresh();
+  };
+
   const handleSaveName = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -153,6 +158,7 @@ export function WhatsAppLogin({
 
   const handleResendOtp = async () => {
     const phoneE164 = `+91${phone}`;
+    setLoading(true);
     try {
       const res = await fetch("/api/auth/evolution/send-otp", {
         method: "POST",
@@ -164,6 +170,8 @@ export function WhatsAppLogin({
       setResendIn(RESEND_SECONDS);
     } catch (err) {
       setError((err as Error).message ?? "Failed to resend OTP");
+    } finally {
+      setLoading(false);
     }
   };
 
