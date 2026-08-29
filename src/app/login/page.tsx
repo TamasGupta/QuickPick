@@ -3,24 +3,15 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Mail, ShieldCheck, ArrowLeft, User as UserIcon, TriangleAlert } from "lucide-react";
+import { Mail, ShieldCheck, ArrowLeft, User as UserIcon, TriangleAlert, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/store/notify";
+import { WhatsAppLogin } from "@/components/WhatsAppLogin";
 
 const RESEND_SECONDS = 60;
 
-// TEMPORARY: while email delivery isn't confirmed working end-to-end,
-// everyone logs in with one shared static code (set server-side via
-// STATIC_OTP_CODE) instead of a real per-user OTP. Turn this off (unset the
-// env vars, redeploy) once real email delivery is verified — see
-// /api/auth/static-login for the security note.
 const STATIC_MODE = process.env.NEXT_PUBLIC_STATIC_OTP_ENABLED === "true";
-
-// WhatsApp OTP (Meta Cloud API) is on hold — it requires a verified Meta
-// Business account we don't currently have. The send/verify branches below
-// are commented out rather than deleted so this can be re-enabled later
-// without rebuilding it; see lib/whatsapp.ts and /api/auth/whatsapp/*.
-// const WHATSAPP_MODE = !STATIC_MODE && process.env.NEXT_PUBLIC_WHATSAPP_OTP_ENABLED === "true";
+const EVOLUTION_ENABLED = process.env.NEXT_PUBLIC_EVOLUTION_ENABLED === "true";
 
 function LoginForm() {
   const supabase = createClient();
@@ -35,6 +26,10 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const otpRef = useRef<HTMLInputElement>(null);
+
+  const [authMode, setAuthMode] = useState<"email" | "whatsapp">("email");
+  const switchToWhatsApp = () => setAuthMode("whatsapp");
+  const switchToEmail = () => setAuthMode("email");
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -242,8 +237,38 @@ function LoginForm() {
         </div>
       )}
       <div className="card animate-fade-in p-6">
-        {step === "email" && (
+        {authMode === "whatsapp" && EVOLUTION_ENABLED && (
+          <WhatsAppLogin
+            mode="login"
+            onSwitchToEmail={switchToEmail}
+          />
+        )}
+
+        {authMode === "email" && (
           <>
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={switchToWhatsApp}
+                disabled={!EVOLUTION_ENABLED || loading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-ink-faint rounded-xl border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <MessageCircle className="h-5 w-5" />
+                Continue with WhatsApp
+              </button>
+              {!EVOLUTION_ENABLED && (
+                <p className="mt-1 text-center text-xs text-ink-faint">WhatsApp login coming soon</p>
+              )}
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="px-2 bg-white text-ink-faint">or continue with email</span>
+                </div>
+              </div>
+            </div>
+
             <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
               <Mail className="h-6 w-6" />
             </span>

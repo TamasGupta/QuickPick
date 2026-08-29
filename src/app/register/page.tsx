@@ -3,17 +3,14 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { User, Mail, Phone, ShieldCheck, ArrowLeft, TriangleAlert, Sparkles, ShoppingBag, CheckCircle2 } from "lucide-react";
+import { User, Mail, Phone, ShieldCheck, ArrowLeft, TriangleAlert, Sparkles, ShoppingBag, CheckCircle2, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/store/notify";
+import { WhatsAppLogin } from "@/components/WhatsAppLogin";
 
 const RESEND_SECONDS = 60;
 const STATIC_MODE = process.env.NEXT_PUBLIC_STATIC_OTP_ENABLED === "true";
-
-// WhatsApp OTP (Meta Cloud API) is on hold — it requires a verified Meta
-// Business account we don't currently have. See the matching comment in
-// src/app/login/page.tsx and lib/whatsapp.ts / /api/auth/whatsapp/*.
-// const WHATSAPP_MODE = !STATIC_MODE && process.env.NEXT_PUBLIC_WHATSAPP_OTP_ENABLED === "true";
+const EVOLUTION_ENABLED = process.env.NEXT_PUBLIC_EVOLUTION_ENABLED === "true";
 
 function RegisterForm() {
   const supabase = createClient();
@@ -30,6 +27,10 @@ function RegisterForm() {
   const [resendIn, setResendIn] = useState(0);
   const otpRef = useRef<HTMLInputElement>(null);
 
+  const [authMode, setAuthMode] = useState<"email" | "whatsapp">("email");
+  const switchToWhatsApp = () => setAuthMode("whatsapp");
+  const switchToEmail = () => setAuthMode("email");
+
   useEffect(() => {
     if (resendIn <= 0) return;
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
@@ -40,7 +41,6 @@ function RegisterForm() {
     if (step === "otp") otpRef.current?.focus();
   }, [step]);
 
-  // Check if user is already logged in with a full name set
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
@@ -160,12 +160,6 @@ function RegisterForm() {
 
     if (userId) {
       const trimmedName = name.trim();
-      // phone is plain contact info here (no OTP/verification gate) — kept
-      // so the existing buyer<->rider delivery-call feature keeps working
-      // now that auth itself no longer runs through phone (see migration
-      // 018). Stored with the "91" prefix, no "+", matching the format the
-      // old phone-auth flow used to write (profiles.phone = phone.replace
-      // ("+", "")) — every existing display of this field expects that shape.
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ full_name: trimmedName, phone: `91${phone}` })
@@ -198,198 +192,232 @@ function RegisterForm() {
         </div>
       )}
 
-      {/* Step indicator */}
-      <div className="mb-6 flex items-center justify-between px-2">
-        {[
-          { num: 1, label: "Details" },
-          { num: 2, label: "Verify" },
-          { num: 3, label: "Welcome" },
-        ].map((s, idx) => (
-          <div key={s.num} className="flex items-center flex-1">
-            <div className="flex items-center gap-2">
-              <div
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                  currentStepNum === s.num
-                    ? "bg-brand-600 text-white ring-4 ring-brand-100"
-                    : currentStepNum > s.num
-                    ? "bg-emerald-500 text-white"
-                    : "bg-gray-100 text-ink-faint"
-                }`}
-              >
-                {currentStepNum > s.num ? <CheckCircle2 className="h-4 w-4" /> : s.num}
+      {authMode === "whatsapp" && EVOLUTION_ENABLED && (
+        <WhatsAppLogin
+          mode="register"
+          onSwitchToEmail={switchToEmail}
+        />
+      )}
+
+      {authMode === "email" && (
+        <>
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={switchToWhatsApp}
+              disabled={!EVOLUTION_ENABLED || loading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-ink-faint rounded-xl border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <MessageCircle className="h-5 w-5" />
+              Continue with WhatsApp
+            </button>
+            {!EVOLUTION_ENABLED && (
+              <p className="mt-1 text-center text-xs text-ink-faint">WhatsApp registration coming soon</p>
+            )}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
               </div>
-              <span
-                className={`text-xs font-semibold ${
-                  currentStepNum === s.num
-                    ? "text-brand-600"
-                    : currentStepNum > s.num
-                    ? "text-emerald-600"
-                    : "text-ink-faint"
-                }`}
-              >
-                {s.label}
-              </span>
+              <div className="relative flex justify-center text-xs">
+                <span className="px-2 bg-white text-ink-faint">or continue with email</span>
+              </div>
             </div>
-            {idx < 2 && (
-              <div
-                className={`mx-2 h-0.5 flex-1 transition-all ${
-                  currentStepNum > idx + 1 ? "bg-emerald-500" : "bg-gray-200"
-                }`}
-              />
+          </div>
+
+          {/* Step indicator */}
+          <div className="mb-6 flex items-center justify-between px-2">
+            {[
+              { num: 1, label: "Details" },
+              { num: 2, label: "Verify" },
+              { num: 3, label: "Welcome" },
+            ].map((s, idx) => (
+              <div key={s.num} className="flex items-center flex-1">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                      currentStepNum === s.num
+                        ? "bg-brand-600 text-white ring-4 ring-brand-100"
+                        : currentStepNum > s.num
+                        ? "bg-emerald-500 text-white"
+                        : "bg-gray-100 text-ink-faint"
+                    }`}
+                  >
+                    {currentStepNum > s.num ? <CheckCircle2 className="h-4 w-4" /> : s.num}
+                  </div>
+                  <span
+                    className={`text-xs font-semibold ${
+                      currentStepNum === s.num
+                        ? "text-brand-600"
+                        : currentStepNum > s.num
+                        ? "text-emerald-600"
+                        : "text-ink-faint"
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                </div>
+                {idx < 2 && (
+                  <div
+                    className={`mx-2 h-0.5 flex-1 transition-all ${
+                      currentStepNum > idx + 1 ? "bg-emerald-500" : "bg-gray-200"
+                    }`}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="card animate-fade-in p-6">
+            {step === "details" && (
+              <>
+                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+                  <Sparkles className="h-6 w-6" />
+                </span>
+                <h1 className="text-xl font-extrabold text-ink">Create your account</h1>
+                <p className="mt-1 text-sm text-ink-faint">
+                  Join GrabOn for superfast grocery deliveries.
+                </p>
+
+                <form onSubmit={handleSendOtp} className="mt-4 space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-ink-soft">Full Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 h-4 w-4 text-ink-faint" />
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        placeholder="Enter your name"
+                        className="input pl-9"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-ink-soft">Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-ink-faint" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="you@example.com"
+                        className="input pl-9"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-ink-soft">Mobile Number</label>
+                    <p className="mb-1 text-[11px] text-ink-faint">
+                      Used to reach you about deliveries — not for login.
+                    </p>
+                    <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100">
+                      <span className="flex items-center bg-gray-50 px-3 text-sm font-semibold text-ink-soft">
+                        <Phone className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        required
+                        placeholder="98765 43210"
+                        className="w-full px-3 py-2.5 text-sm outline-none"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      />
+                    </div>
+                  </div>
+
+                  <button className="btn-primary w-full py-3 mt-2" disabled={loading}>
+                    {loading ? "Sending OTP…" : STATIC_MODE ? "Continue to Verify" : "Get Verification Code"}
+                  </button>
+
+                  <div className="pt-2 text-center text-xs text-ink-soft">
+                    Already have an account?{" "}
+                    <Link href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-semibold text-brand-600 hover:underline">
+                      Log in
+                    </Link>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {step === "otp" && (
+              <>
+                <button
+                  onClick={() => {
+                    setStep("details");
+                    setOtp("");
+                  }}
+                  className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Edit details
+                </button>
+                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+                  <ShieldCheck className="h-6 w-6" />
+                </span>
+                <h1 className="text-xl font-extrabold text-ink">Verify your email</h1>
+                <p className="mt-1 text-sm text-ink-faint">
+                  {STATIC_MODE
+                    ? "Enter the shared testing code."
+                    : `Enter the 6-digit verification code sent to ${email}`}
+                </p>
+
+                <form onSubmit={handleVerifyOtp} className="mt-4 space-y-3">
+                  <input
+                    ref={otpRef}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    required
+                    placeholder="••••••"
+                    className="input text-center text-lg tracking-[0.5em]"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  />
+                  <button className="btn-primary w-full py-3" disabled={loading}>
+                    {loading ? "Verifying…" : "Complete Registration"}
+                  </button>
+                  {!STATIC_MODE && (
+                    <button
+                      type="button"
+                      onClick={() => handleSendOtp({ preventDefault: () => {} } as React.FormEvent)}
+                      disabled={resendIn > 0 || loading}
+                      className="w-full text-center text-sm text-brand-700 disabled:text-ink-faint"
+                    >
+                      {resendIn > 0 ? `Resend OTP in ${resendIn}s` : "Resend OTP"}
+                    </button>
+                  )}
+                </form>
+              </>
+            )}
+
+            {step === "success" && (
+              <div className="text-center py-4 space-y-4 animate-bounce-in">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <Sparkles className="h-8 w-8 animate-float" />
+                </div>
+                <h1 className="text-2xl font-extrabold text-ink">Welcome to GrabOn, {name}! 🎉</h1>
+                <p className="text-sm text-ink-soft max-w-xs mx-auto">
+                  Your account has been created successfully. Browse fresh groceries and get them delivered in minutes!
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={finishRegistration}
+                    className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-base font-bold shadow-pop"
+                  >
+                    <ShoppingBag className="h-5 w-5" />
+                    Start Shopping
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-        ))}
-      </div>
-
-      <div className="card animate-fade-in p-6">
-        {step === "details" && (
-          <>
-            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-              <Sparkles className="h-6 w-6" />
-            </span>
-            <h1 className="text-xl font-extrabold text-ink">Create your account</h1>
-            <p className="mt-1 text-sm text-ink-faint">
-              Join GrabOn for superfast grocery deliveries.
-            </p>
-
-            <form onSubmit={handleSendOtp} className="mt-4 space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-ink-soft">Full Name</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-ink-faint" />
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    placeholder="Enter your name"
-                    className="input pl-9"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-ink-soft">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-ink-faint" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    className="input pl-9"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-ink-soft">Mobile Number</label>
-                <p className="mb-1 text-[11px] text-ink-faint">
-                  Used to reach you about deliveries — not for login.
-                </p>
-                <div className="flex items-stretch overflow-hidden rounded-xl border border-gray-200 focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100">
-                  <span className="flex items-center bg-gray-50 px-3 text-sm font-semibold text-ink-soft">
-                    <Phone className="h-4 w-4" />
-                  </span>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    required
-                    placeholder="98765 43210"
-                    className="w-full px-3 py-2.5 text-sm outline-none"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  />
-                </div>
-              </div>
-
-              <button className="btn-primary w-full py-3 mt-2" disabled={loading}>
-                {loading ? "Sending OTP…" : STATIC_MODE ? "Continue to Verify" : "Get Verification Code"}
-              </button>
-
-              <div className="pt-2 text-center text-xs text-ink-soft">
-                Already have an account?{" "}
-                <Link href={`/login${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-semibold text-brand-600 hover:underline">
-                  Log in
-                </Link>
-              </div>
-            </form>
-          </>
-        )}
-
-        {step === "otp" && (
-          <>
-            <button
-              onClick={() => {
-                setStep("details");
-                setOtp("");
-              }}
-              className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
-            >
-              <ArrowLeft className="h-4 w-4" /> Edit details
-            </button>
-            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-              <ShieldCheck className="h-6 w-6" />
-            </span>
-            <h1 className="text-xl font-extrabold text-ink">Verify your email</h1>
-            <p className="mt-1 text-sm text-ink-faint">
-              {STATIC_MODE
-                ? "Enter the shared testing code."
-                : `Enter the 6-digit verification code sent to ${email}`}
-            </p>
-
-            <form onSubmit={handleVerifyOtp} className="mt-4 space-y-3">
-              <input
-                ref={otpRef}
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                required
-                placeholder="••••••"
-                className="input text-center text-lg tracking-[0.5em]"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              />
-              <button className="btn-primary w-full py-3" disabled={loading}>
-                {loading ? "Verifying…" : "Complete Registration"}
-              </button>
-              {!STATIC_MODE && (
-                <button
-                  type="button"
-                  onClick={() => handleSendOtp({ preventDefault: () => {} } as React.FormEvent)}
-                  disabled={resendIn > 0 || loading}
-                  className="w-full text-center text-sm text-brand-700 disabled:text-ink-faint"
-                >
-                  {resendIn > 0 ? `Resend OTP in ${resendIn}s` : "Resend OTP"}
-                </button>
-              )}
-            </form>
-          </>
-        )}
-
-        {step === "success" && (
-          <div className="text-center py-4 space-y-4 animate-bounce-in">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-              <Sparkles className="h-8 w-8 animate-float" />
-            </div>
-            <h1 className="text-2xl font-extrabold text-ink">Welcome to GrabOn, {name}! 🎉</h1>
-            <p className="text-sm text-ink-soft max-w-xs mx-auto">
-              Your account has been created successfully. Browse fresh groceries and get them delivered in minutes!
-            </p>
-            <div className="pt-2">
-              <button
-                onClick={finishRegistration}
-                className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-base font-bold shadow-pop"
-              >
-                <ShoppingBag className="h-5 w-5" />
-                Start Shopping
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
