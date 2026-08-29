@@ -90,7 +90,7 @@ export function WhatsAppLogin({
       const res = await fetch("/api/auth/evolution/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneE164 }),
+        body: JSON.stringify({ phone: phoneE164, mode }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send OTP");
@@ -116,7 +116,7 @@ export function WhatsAppLogin({
 
     try {
       const phoneE164 = `+91${phone}`;
-      const res = await fetch("/api/auth/whatsapp/verify-otp", {
+      const res = await fetch("/api/auth/evolution/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: phoneE164, code: otp }),
@@ -157,7 +157,7 @@ export function WhatsAppLogin({
       const res = await fetch("/api/auth/evolution/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneE164 }),
+        body: JSON.stringify({ phone: phoneE164, mode }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to resend OTP");
