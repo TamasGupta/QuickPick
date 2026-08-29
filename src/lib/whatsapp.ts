@@ -40,10 +40,16 @@ export async function sendOtpWhatsapp(phone: string, code: string): Promise<What
           name: templateName,
           language: { code: "en" },
           components: [
-            { type: "body", parameters: [{ type: "text", text: code }] },
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: "Grabonn" },  // App name
+                { type: "text", text: code },        // OTP code
+              ],
+            },
             {
               type: "button",
-              sub_type: "url",
+              sub_type: "copy_code",
               index: "0",
               parameters: [{ type: "text", text: code }],
             },

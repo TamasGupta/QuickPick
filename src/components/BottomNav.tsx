@@ -3,17 +3,38 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, LayoutGrid, ShoppingCart, ClipboardList, User } from "lucide-react";
+import {
+  Home,
+  LayoutGrid,
+  ShoppingCart,
+  ClipboardList,
+  User,
+} from "lucide-react";
 import { useCart } from "@/store/cart";
 import { createClient } from "@/lib/supabase/client";
 import { cx } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" },
-  { href: "/categories", label: "Categories", icon: LayoutGrid, match: (p: string) => p.startsWith("/categories") },
-  { href: "/cart", label: "Cart", icon: ShoppingCart, match: (p: string) => p.startsWith("/cart") },
-  { href: "/orders", label: "Orders", icon: ClipboardList, match: (p: string) => p.startsWith("/orders") },
-  { href: "/account", label: "Account", icon: User, match: (p: string) => p.startsWith("/account") },
+  // { href: "/categories", label: "Categories", icon: LayoutGrid, match: (p: string) => p.startsWith("/categories") },
+  {
+    href: "/cart",
+    label: "Cart",
+    icon: ShoppingCart,
+    match: (p: string) => p.startsWith("/cart"),
+  },
+  {
+    href: "/orders",
+    label: "Orders",
+    icon: ClipboardList,
+    match: (p: string) => p.startsWith("/orders"),
+  },
+  {
+    href: "/account",
+    label: "Account",
+    icon: User,
+    match: (p: string) => p.startsWith("/account"),
+  },
 ];
 
 // Active-orders count for the Orders tab badge. Realtime-driven, not polled,
@@ -55,8 +76,13 @@ function useBuyerActiveCount(): number {
         .channel(`buyer-active-count-${userId}`)
         .on(
           "postgres_changes",
-          { event: "*", schema: "public", table: "orders", filter: `buyer_id=eq.${userId}` },
-          refreshCount
+          {
+            event: "*",
+            schema: "public",
+            table: "orders",
+            filter: `buyer_id=eq.${userId}`,
+          },
+          refreshCount,
         )
         .subscribe();
     });
@@ -91,11 +117,16 @@ function BuyerNav({ path }: { path: string }) {
                 href={href}
                 className={cx(
                   "relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors",
-                  active ? "text-brand-700" : "text-ink-faint"
+                  active ? "text-brand-700" : "text-ink-faint",
                 )}
               >
                 <span className="relative">
-                  <Icon className={cx("h-[22px] w-[22px]", active && "stroke-[2.4]")} />
+                  <Icon
+                    className={cx(
+                      "h-[22px] w-[22px]",
+                      active && "stroke-[2.4]",
+                    )}
+                  />
                   {badgeFor(href) > 0 && (
                     <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-extrabold text-white">
                       {badgeFor(href)}
@@ -103,7 +134,9 @@ function BuyerNav({ path }: { path: string }) {
                   )}
                 </span>
                 {label}
-                {active && <span className="absolute -top-px h-0.5 w-8 rounded-full bg-brand-600" />}
+                {active && (
+                  <span className="absolute -top-px h-0.5 w-8 rounded-full bg-brand-600" />
+                )}
               </Link>
             </li>
           );
@@ -115,7 +148,10 @@ function BuyerNav({ path }: { path: string }) {
 
 export function BottomNav() {
   const path = usePathname();
-  const inConsole = path.startsWith("/seller") || path.startsWith("/admin") || path.startsWith("/rider");
+  const inConsole =
+    path.startsWith("/seller") ||
+    path.startsWith("/admin") ||
+    path.startsWith("/rider");
   // Hide inside seller/admin/rider consoles — and never mount BuyerNav (and
   // its Realtime subscription) there in the first place.
   if (inConsole) return null;
