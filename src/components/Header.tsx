@@ -21,7 +21,7 @@ export function Header() {
   const inAdminOrRiderConsole = pathname.startsWith("/admin") || inRiderConsole;
   // Neither console has anything to search — sellers/riders manage their own
   // orders/products/deliveries, not the buyer catalog.
-  const hideSearch = inSellerConsole || inRiderConsole;
+  const hideSearch = inConsole;
   // Login has no shopping context — search, delivery location, and the
   // cart/login actions are all irrelevant (and "Login" is actively
   // confusing) while you're already on the login screen.
