@@ -39,12 +39,27 @@ export function WhatsAppLogin({
   const [resendIn, setResendIn] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const otpRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
 
   const destinationFor = (role: string | undefined) => {
     if (role === "admin") return "/admin";
     if (role === "seller") return "/seller";
     if (role === "rider") return "/rider";
     return next;
+  };
+
+  const startResendTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setResendIn(RESEND_SECONDS);
+    timerRef.current = setInterval(() => {
+      setResendIn((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   const handleSendOtp = async (e?: React.FormEvent) => {
@@ -69,7 +84,7 @@ export function WhatsAppLogin({
       if (!res.ok) throw new Error(data.error ?? "Failed to send OTP");
 
       setStep("otp");
-      setResendIn(RESEND_SECONDS);
+      startResendTimer();
     } catch (err) {
       setLoading(false);
       setError((err as Error).message ?? "Failed to send OTP");
@@ -167,7 +182,7 @@ export function WhatsAppLogin({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to resend OTP");
-      setResendIn(RESEND_SECONDS);
+      startResendTimer();
     } catch (err) {
       setError((err as Error).message ?? "Failed to resend OTP");
     } finally {

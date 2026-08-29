@@ -6,6 +6,7 @@ import { AdminRiderRow } from "@/components/admin/AdminRiderRow";
 import { CreateSellerForm } from "@/components/admin/CreateSellerForm";
 import { CreateRiderForm } from "@/components/admin/CreateRiderForm";
 import { RefreshImagesButton } from "@/components/admin/RefreshImagesButton";
+import { LogoutButton } from "@/components/LogoutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export default async function AdminPage() {
         <div className="flex gap-2">
           <Link href="/admin/orders" className="btn-outline">Order lifecycle</Link>
           <Link href="/admin/ledger" className="btn-outline">Payout ledger</Link>
+          <LogoutButton />
         </div>
       </div>
       <div className="grid grid-cols-4 gap-3">
