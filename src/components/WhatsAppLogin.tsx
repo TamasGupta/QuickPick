@@ -17,6 +17,7 @@ interface WhatsAppLoginProps {
   mode: "login" | "register";
   onSwitchToEmail: () => void;
   initialName?: string;
+  showEmailOption?: boolean;
 }
 
 const RESEND_SECONDS = 60;
@@ -25,6 +26,7 @@ export function WhatsAppLogin({
   mode,
   onSwitchToEmail,
   initialName = "",
+  showEmailOption = true,
 }: WhatsAppLoginProps) {
   const supabase = createClient();
   const router = useRouter();
@@ -194,12 +196,14 @@ export function WhatsAppLogin({
     <div className="mx-auto max-w-sm py-8">
       {step === "phone" && (
         <>
-          <button
-            onClick={onSwitchToEmail}
-            className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
-          >
-            <ArrowLeft className="h-4 w-4" /> Use email instead
-          </button>
+          {showEmailOption && (
+            <button
+              onClick={onSwitchToEmail}
+              className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
+            >
+              <ArrowLeft className="h-4 w-4" /> Use email instead
+            </button>
+          )}
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
             <MessageCircle className="h-6 w-6" />
           </div>
@@ -227,18 +231,20 @@ export function WhatsAppLogin({
                   ? "Send code via WhatsApp"
                   : "Get Started"}
             </button>
-            <div className="pt-2 text-center text-xs text-ink-soft">
-              {mode === "login"
-                ? "Prefer email? "
-                : "Already have an account? "}
-              <button
-                type="button"
-                onClick={onSwitchToEmail}
-                className="font-semibold text-brand-600 hover:underline"
-              >
-                {mode === "login" ? "Use email" : "Log in"}
-              </button>
-            </div>
+            {showEmailOption && (
+              <div className="pt-2 text-center text-xs text-ink-soft">
+                {mode === "login"
+                  ? "Prefer email? "
+                  : "Already have an account? "}
+                <button
+                  type="button"
+                  onClick={onSwitchToEmail}
+                  className="font-semibold text-brand-600 hover:underline"
+                >
+                  {mode === "login" ? "Use email" : "Log in"}
+                </button>
+              </div>
+            )}
           </form>
         </>
       )}
