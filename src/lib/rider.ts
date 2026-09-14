@@ -40,7 +40,7 @@ export interface RiderOrder {
     lat: number | null;
     lng: number | null;
   } | null;
-  items: { name: string; qty: number }[];
+  items: { id: string; name: string; qty: number }[];
 }
 
 // Attach buyer / address / store / items to a set of orders using the service
@@ -62,17 +62,17 @@ export async function enrichOrders(
       addressIds.length
         ? service.from("addresses").select("*").in("id", addressIds)
         : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-      service.from("order_items").select("order_id, name, qty").in("order_id", orderIds),
+      service.from("order_items").select("id, order_id, name, qty").in("order_id", orderIds),
       service.from("sellers").select("id, store_name, address_line, city, pincode, lat, lng").in("id", sellerIds),
     ]);
 
   const buyerMap = new Map((buyers ?? []).map((b) => [b.id, b]));
   const addrMap = new Map((addresses ?? []).map((a: Record<string, unknown>) => [a.id, a]));
   const sellerMap = new Map((sellers ?? []).map((s) => [s.id, s]));
-  const itemsByOrder = new Map<string, { name: string; qty: number }[]>();
+  const itemsByOrder = new Map<string, { id: string; name: string; qty: number }[]>();
   for (const it of items ?? []) {
     const arr = itemsByOrder.get(it.order_id) ?? [];
-    arr.push({ name: it.name, qty: it.qty });
+    arr.push({ id: it.id, name: it.name, qty: it.qty });
     itemsByOrder.set(it.order_id, arr);
   }
 
