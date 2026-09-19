@@ -7,7 +7,7 @@ function RegisterForm() {
   return (
     <div className="mx-auto max-w-sm py-8">
       <div className="card animate-fade-in p-6">
-        <WhatsAppLogin mode="register" onSwitchToEmail={() => {}} />
+        <WhatsAppLogin mode="register" onSwitchToEmail={() => {}} showEmailOption={false} />
       </div>
     </div>
   );

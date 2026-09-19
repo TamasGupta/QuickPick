@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail,
+  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { createClient } from "@/lib/supabase/client";
@@ -374,6 +374,7 @@ function RiderOrderCard({
   act: (action: string, id: string, otp?: string) => Promise<boolean>;
 }) {
   const [otp, setOtp] = useState("");
+  const [showItems, setShowItems] = useState(false);
   const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
   const isCod = o.payment_status === "cod";
 
@@ -479,11 +480,34 @@ function RiderOrderCard({
         </div>
       )}
 
-      {/* Items preview */}
-      <p className="text-xs text-ink-faint">
-        {o.items.slice(0, 3).map((i) => `${i.name}×${i.qty}`).join(", ")}
-        {o.items.length > 3 ? ` +${o.items.length - 3} more` : ""}
-      </p>
+      {/* Items - expandable list */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setShowItems(!showItems)}
+          className="flex items-center justify-between w-full text-left text-xs text-ink-faint hover:text-ink"
+        >
+          <span>
+            {o.items.slice(0, 3).map((i) => `${i.name}×${i.qty}`).join(", ")}
+            {o.items.length > 3 ? ` +${o.items.length - 3} more` : ""}
+          </span>
+          <span className="flex items-center gap-1 font-medium">
+            {itemCount} item{itemCount === 1 ? "" : "s"}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showItems ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+
+        {showItems && (
+          <ul className="space-y-1 border-t pt-2">
+            {o.items.map((it) => (
+              <li key={it.id} className="flex justify-between text-sm">
+                <span>{it.name} × {it.qty}</span>
+                <span className="font-medium">{inr((o.total / itemCount) * it.qty)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* Actions */}
       {tab === "available" && (

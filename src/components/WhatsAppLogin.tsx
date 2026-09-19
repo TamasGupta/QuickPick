@@ -17,6 +17,7 @@ interface WhatsAppLoginProps {
   mode: "login" | "register";
   onSwitchToEmail: () => void;
   initialName?: string;
+  showEmailOption?: boolean;
 }
 
 const RESEND_SECONDS = 60;
@@ -25,6 +26,7 @@ export function WhatsAppLogin({
   mode,
   onSwitchToEmail,
   initialName = "",
+  showEmailOption = true,
 }: WhatsAppLoginProps) {
   const supabase = createClient();
   const router = useRouter();
@@ -38,6 +40,7 @@ export function WhatsAppLogin({
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const otpRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
@@ -115,6 +118,7 @@ export function WhatsAppLogin({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Verification failed");
 
+      setVerifiedUserId(data.userId);
       await afterVerified(data.userId);
     } catch (err) {
       setLoading(false);
@@ -157,16 +161,15 @@ export function WhatsAppLogin({
       setError("Please enter your name");
       return;
     }
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from("profiles")
-        .update({ full_name: name.trim() })
-        .eq("id", user.id);
+    if (!verifiedUserId) {
+      setError("Session expired. Please try again.");
+      return;
     }
+    setLoading(true);
+    await supabase
+      .from("profiles")
+      .update({ full_name: name.trim() })
+      .eq("id", verifiedUserId);
     router.replace(next);
     router.refresh();
   };
@@ -194,12 +197,14 @@ export function WhatsAppLogin({
     <div className="mx-auto max-w-sm py-8">
       {step === "phone" && (
         <>
-          <button
-            onClick={onSwitchToEmail}
-            className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
-          >
-            <ArrowLeft className="h-4 w-4" /> Use email instead
-          </button>
+          {showEmailOption && (
+            <button
+              onClick={onSwitchToEmail}
+              className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
+            >
+              <ArrowLeft className="h-4 w-4" /> Use email instead
+            </button>
+          )}
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
             <MessageCircle className="h-6 w-6" />
           </div>
@@ -227,18 +232,20 @@ export function WhatsAppLogin({
                   ? "Send code via WhatsApp"
                   : "Get Started"}
             </button>
-            <div className="pt-2 text-center text-xs text-ink-soft">
-              {mode === "login"
-                ? "Prefer email? "
-                : "Already have an account? "}
-              <button
-                type="button"
-                onClick={onSwitchToEmail}
-                className="font-semibold text-brand-600 hover:underline"
-              >
-                {mode === "login" ? "Use email" : "Log in"}
-              </button>
-            </div>
+            {showEmailOption && (
+              <div className="pt-2 text-center text-xs text-ink-soft">
+                {mode === "login"
+                  ? "Prefer email? "
+                  : "Already have an account? "}
+                <button
+                  type="button"
+                  onClick={onSwitchToEmail}
+                  className="font-semibold text-brand-600 hover:underline"
+                >
+                  {mode === "login" ? "Use email" : "Log in"}
+                </button>
+              </div>
+            )}
           </form>
         </>
       )}
@@ -246,7 +253,7 @@ export function WhatsAppLogin({
       {step === "otp" && (
         <>
           <button
-            onClick={() => setStep("phone")}
+            onClick={() => { setStep("phone"); setVerifiedUserId(null); }}
             className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" /> Change number
