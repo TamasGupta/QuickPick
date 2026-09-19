@@ -6,6 +6,13 @@ import { verifyOtp } from '@/lib/otp';
 import { authRatelimit } from '@/lib/rateLimit';
 import { withApiLogging } from '@/lib/apiLogger';
 
+const TEST_PHONE_PREFIX = "+91987654321";
+const ADDITIONAL_TEST_PHONES = ["+919000000001"];
+
+function isTestPhone(phone: string): boolean {
+  return phone.startsWith(TEST_PHONE_PREFIX) || ADDITIONAL_TEST_PHONES.includes(phone);
+}
+
 export const POST = withApiLogging(
   '/api/auth/evolution/verify-otp',
   async (req: Request) => {
@@ -32,6 +39,35 @@ export const POST = withApiLogging(
       return NextResponse.json({ error: 'Incorrect or expired code' }, { status: 401 });
     }
 
+    // For test phones, skip user lookup and create/return a test user
+    let userId: string;
+    if (isTestPhone(phone)) {
+      // Use a fixed test user ID or create one
+      const service = createServiceSupabase();
+      const { data: list } = await service.auth.admin.listUsers({ perPage: 200 });
+      const existing = list.users.find((u) => u.phone === phone.replace('+', ''));
+      
+      const tempPassword = randomUUID();
+      if (existing) {
+        userId = existing.id;
+        await service.auth.admin.updateUserById(userId, {
+          password: tempPassword,
+          phone_confirm: true,
+        });
+      } else {
+        const { data: created } = await service.auth.admin.createUser({
+          phone,
+          phone_confirm: true,
+          password: tempPassword,
+        });
+        userId = created.user!.id;
+      }
+      
+      const supabase = createServerSupabase();
+      await supabase.auth.signInWithPassword({ phone, password: tempPassword });
+      return NextResponse.json({ ok: true, userId });
+    }
+
     const service = createServiceSupabase();
 
     const { data: list, error: listErr } = await service.auth.admin.listUsers({ perPage: 200 });
@@ -40,7 +76,6 @@ export const POST = withApiLogging(
 
     const tempPassword = randomUUID();
 
-    let userId: string;
     if (existing) {
       userId = existing.id;
       const { error } = await service.auth.admin.updateUserById(userId, {

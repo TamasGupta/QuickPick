@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Phone, User as UserIcon, Check, Download, Info, ShieldCheck, FileText, RefreshCcw, Mail, ChevronRight, LogOut, Package, MapPin } from "lucide-react";
+import { Phone, User as UserIcon, Check, Download, Info, ShieldCheck, FileText, RefreshCcw, ChevronRight, LogOut, Package, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SkelLine } from "@/components/skeletons";
 import { SavedAddresses } from "@/components/SavedAddresses";
@@ -15,7 +15,6 @@ export default function AccountPage() {
   const supabase = createClient();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState<string | null>(null);
   const [contactPhone, setContactPhone] = useState<string | null>(null);
   const [role, setRole] = useState<string>("buyer");
   const [name, setName] = useState("");
@@ -36,7 +35,6 @@ export default function AccountPage() {
         router.push("/login");
         return;
       }
-      setEmail(user.email ?? null);
       const { data: p } = await supabase
         .from("profiles")
         .select("role, full_name, phone")
@@ -121,10 +119,6 @@ export default function AccountPage() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-ink truncate">{savedName || "Not set"}</p>
-            <p className="text-xs text-ink-soft mt-1 flex items-center gap-1">
-              <Mail className="h-3 w-3" />
-              {email ?? "No email on file"}
-            </p>
             {contactPhone && (
               <p className="text-xs text-ink-soft mt-0.5 flex items-center gap-1">
                 <Phone className="h-3 w-3" />
@@ -222,7 +216,7 @@ export default function AccountPage() {
         <div className="card divide-y divide-gray-100 overflow-hidden">
           {[
             { href: "/about", label: "About GrabOn", icon: Info },
-            { href: "/contact", label: "Contact Us", icon: Mail },
+            { href: "/contact", label: "Contact Us", icon: MapPin },
             { href: "/refund-policy", label: "Refund & Cancellation", icon: RefreshCcw },
             { href: "/privacy", label: "Privacy Policy", icon: ShieldCheck },
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
