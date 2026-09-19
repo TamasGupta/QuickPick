@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Minus, Clock } from "lucide-react";
+import { Plus, Minus } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { inr, MAX_CART_ITEMS } from "@/lib/utils";
 import { notify } from "@/store/notify";
@@ -23,7 +23,9 @@ export function ProductCard({ product }: { product: Product }) {
       stock: product.stock,
     });
     if (!ok) {
-      notify.error(`Cart limit reached — max ${MAX_CART_ITEMS} products at a time.`);
+      notify.error(
+        `Cart limit reached — max ${MAX_CART_ITEMS} products at a time.`,
+      );
     }
   }
   const out = product.stock <= 0;
@@ -53,34 +55,44 @@ export function ProductCard({ product }: { product: Product }) {
         )}
       </div>
 
-      {/* Delivery time */}
-      <div className="mb-1 inline-flex w-fit items-center gap-0.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-ink-soft">
-        <Clock className="h-2.5 w-2.5" /> 11 MINS
-      </div>
+      {/* Unit */}
+      {/* <div className="mb-1 inline-flex w-fit items-center gap-0.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-ink-soft">
+        {product.unit ?? "unit"}
+      </div> */}
 
-      {/* Name + unit */}
-      <h3 className="line-clamp-2 min-h-[2.4rem] text-[13px] font-semibold leading-tight text-ink">
+      {/* Name */}
+      <h3 className="line-clamp-2 max-h-[2.5rem] text-[13px] font-semibold leading-tight text-ink">
         {product.name}
       </h3>
-      <span className="mb-2 text-xs text-ink-faint">{product.unit}</span>
 
       {/* Price + add */}
       <div className="mt-auto flex items-center justify-between">
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-bold text-ink">{inr(product.price)}</span>
+          <span className="text-sm font-bold text-ink">
+            {inr(product.price)}
+          </span>
           {product.mrp && product.mrp > product.price && (
-            <span className="text-[11px] text-ink-faint line-through">{inr(product.mrp)}</span>
+            <span className="text-[11px] text-ink-faint line-through">
+              {inr(product.mrp)}
+            </span>
           )}
         </div>
 
         {out ? (
-          <span className="badge bg-gray-100 px-2 py-1 text-ink-faint">Sold out</span>
+          <span className="badge bg-gray-100 px-2 py-1 text-ink-faint">
+            Sold out
+          </span>
         ) : inCart ? (
           <div className="qty-stepper animate-bounce-in">
-            <button onClick={() => setQty(product.id, inCart.qty - 1)} aria-label="decrease">
+            <button
+              onClick={() => setQty(product.id, inCart.qty - 1)}
+              aria-label="decrease"
+            >
               <Minus className="h-3.5 w-3.5" />
             </button>
-            <span className="min-w-6 text-center text-sm font-bold">{inCart.qty}</span>
+            <span className="min-w-6 text-center text-sm font-bold">
+              {inCart.qty}
+            </span>
             <button
               disabled={inCart.qty >= product.stock}
               onClick={() => setQty(product.id, inCart.qty + 1)}
