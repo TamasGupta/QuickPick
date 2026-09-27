@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { getMySeller } from "@/lib/seller";
 import { SellerNav } from "@/components/SellerNav";
 import { SellerOrdersList } from "@/components/SellerOrdersList";
@@ -24,10 +24,12 @@ export default async function SellerOrdersPage() {
 
   const list = (orders as Order[]) ?? [];
 
-  // Fetch items for all orders in one query.
+  // Fetch items for all orders using service role (bypasses RLS since we already
+  // verified the seller owns these orders via the orders query above).
+  const service = createServiceSupabase();
   const ids = list.map((o) => o.id);
   const { data: allItems } = ids.length
-    ? await supabase.from("order_items").select("*").in("order_id", ids)
+    ? await service.from("order_items").select("*").in("order_id", ids)
     : { data: [] };
   const itemsByOrder: Record<string, any[]> = {};
   for (const it of allItems ?? []) {

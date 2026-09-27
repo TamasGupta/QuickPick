@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown,
+  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { createClient } from "@/lib/supabase/client";
@@ -42,35 +42,64 @@ export function RiderDashboard({
   email: string | null;
   phone: string | null;
 }) {
-  const [tab, setTab] = useState<Tab>("available");
+const [tab, setTab] = useState<Tab>("available");
   const [orders, setOrders] = useState<RiderOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [availCount, setAvailCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [limit] = useState(20);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
-  // `silent` skips the loading spinner — used for background polling so the
-  // list just updates in place instead of flashing a spinner over it every
-  // cycle. Tab switches and user-triggered refreshes stay non-silent since
-  // there's a real wait with no prior data for that view yet.
+  const buildUrl = useCallback((t: Tab, p = page) => {
+    const params = new URLSearchParams({ scope: t, limit: String(limit), offset: String(p * limit) });
+    if (fromDate) params.set("from_date", fromDate);
+    if (toDate) params.set("to_date", toDate);
+    return `/api/rider/orders?${params.toString()}`;
+  }, [page, limit, fromDate, toDate]);
+
   const load = useCallback(async (t: Tab, opts: { silent?: boolean } = {}) => {
-    if (t === "earnings" || t === "profile") return; // handled by their own components
+    if (t === "earnings" || t === "profile") return;
     if (!opts.silent) setLoading(true);
-    const res = await fetch(`/api/rider/orders?scope=${t}`, { cache: "no-store" });
-    const json = await res.json();
-    setOrders(json.orders ?? []);
+    try {
+      const res = await fetch(buildUrl(t), { cache: "no-store" });
+      console.log(`[rider] load ${t} response status:`, res.status);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[rider] load ${t} failed:`, res.status, errText);
+        return;
+      }
+      const json = await res.json();
+      console.log(`[rider] load ${t} received:`, json.orders?.length ?? 0, "orders", json.orders?.slice(0,1), "total:", json.total);
+      setOrders(json.orders ?? []);
+      setTotal(json.total ?? 0);
+    } catch (err) {
+      console.error(`[rider] load ${t} error:`, err);
+    }
     if (!opts.silent) setLoading(false);
-  }, []);
+  }, [buildUrl]);
+
+  useEffect(() => {
+    setPage(0);
+    load(tab);
+  }, [tab, load, fromDate, toDate]);
 
   // Poll available count for the tab badge.
   const refreshAvailCount = useCallback(async () => {
-    const res = await fetch(`/api/rider/orders?scope=available`, { cache: "no-store" });
-    const json = await res.json();
-    setAvailCount((json.orders ?? []).length);
+    try {
+      const res = await fetch(`/api/rider/orders?scope=available&limit=1`, { cache: "no-store" });
+      if (!res.ok) {
+        console.error(`[rider] refreshAvailCount failed:`, res.status, await res.text());
+        return;
+      }
+      const json = await res.json();
+      setAvailCount(json.total ?? 0);
+    } catch (err) {
+      console.error(`[rider] refreshAvailCount error:`, err);
+    }
   }, []);
-
-  useEffect(() => {
-    load(tab);
-  }, [tab, load]);
 
   // Realtime-driven, not polled: migration 017 added a scoped RLS policy
   // (packed + unclaimed + caller is a rider) so riders can now see this
@@ -97,7 +126,10 @@ export function RiderDashboard({
     const supabase = createClient();
     function refreshAvailable() {
       refreshAvailCount();
-      if (tabRef.current === "available") load("available", { silent: true });
+      if (tabRef.current === "available") {
+        console.log("[rider] Realtime triggered refresh");
+        load("available", { silent: true });
+      }
     }
     refreshAvailable();
     const channel = supabase
@@ -173,38 +205,89 @@ export function RiderDashboard({
         <RiderProfile name={name} email={email} phone={phone} />
       ) : (
         <>
-      <div className="flex items-center justify-between px-1">
-        <span className="text-sm text-ink-faint">
-          {loading ? "Loading…" : `${orders.length} order${orders.length === 1 ? "" : "s"}`}
-        </span>
-        <button onClick={() => load(tab)} className="btn-ghost text-xs">
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
-        </button>
-      </div>
+        <div className="flex flex-col gap-3 px-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-ink-faint" />
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="input text-xs w-36"
+                placeholder="From"
+              />
+              <span className="text-ink-faint text-xs">to</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="input text-xs w-36"
+                placeholder="To"
+              />
+              {(fromDate || toDate) && (
+                <button
+                  onClick={() => { setFromDate(""); setToDate(""); }}
+                  className="btn-ghost text-xs h-8"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="flex-1" />
+            <span className="text-sm text-ink-faint">
+              {loading ? "Loading…" : `${orders.length} of ${total} order${total === 1 ? "" : "s"}`}
+            </span>
+            <button onClick={() => load(tab)} className="btn-ghost text-xs" disabled={loading}>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
 
-      {loading ? (
-        <div className="flex justify-center py-10">
-          <Spinner className="h-7 w-7 border-brand-200 border-t-brand-600" />
+          {total > limit && (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0 || loading}
+                className="btn-outline text-xs"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <span className="text-sm text-ink-faint">
+                Page {page + 1} of {Math.ceil(total / limit)}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(Math.ceil(total / limit) - 1, p + 1))}
+                disabled={(page + 1) * limit >= total || loading}
+                className="btn-outline text-xs"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
-      ) : orders.length === 0 ? (
-        <div className="card p-10 text-center text-ink-soft">
-          <Package className="mx-auto h-10 w-10 text-ink-faint" />
-          <p className="mt-3 font-semibold text-ink">
-            {tab === "available"
-              ? "No orders available right now"
-              : tab === "active"
-                ? "No active deliveries"
-                : "No completed deliveries yet"}
-          </p>
-          <p className="mt-1 text-sm">New orders appear here as soon as they're placed.</p>
-        </div>
-      ) : (
-        <div className="stagger space-y-3">
-          {orders.map((o) => (
-            <RiderOrderCard key={o.id} o={o} tab={tab} busy={busyId === o.id} act={act} />
-          ))}
-        </div>
-      )}
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Spinner className="h-7 w-7 border-brand-200 border-t-brand-600" />
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="card p-10 text-center text-ink-soft">
+            <Package className="mx-auto h-10 w-10 text-ink-faint" />
+            <p className="mt-3 font-semibold text-ink">
+              {tab === "available"
+                ? "No orders available right now"
+                : tab === "active"
+                  ? "No active deliveries"
+                  : "No completed deliveries yet"}
+            </p>
+            <p className="mt-1 text-sm">New orders appear here as soon as they're placed.</p>
+          </div>
+        ) : (
+          <div className="stagger space-y-3">
+            {orders.map((o) => (
+              <RiderOrderCard key={o.id} o={o} tab={tab} busy={busyId === o.id} act={act} />
+            ))}
+          </div>
+        )}
         </>
       )}
     </div>
@@ -399,14 +482,20 @@ function RiderOrderCard({
           >
             {isCod ? "Collect COD" : "Prepaid"}
           </span>
-          {/* Visible from the moment the order is placed, not just once
+{/* Visible from the moment the order is placed, not just once
               packed — see the "available" scope query in /api/rider/orders. */}
-          {tab === "available" && o.status !== "packed" && (
-            <span className="badge flex items-center gap-1 bg-gray-100 text-gray-500">
-              <Clock className="h-3 w-3" />
-              {o.status === "placed" ? "Order placed" : "Store is preparing"}
-            </span>
-          )}
+            {tab === "available" && o.status !== "packed" && (
+              <span className="badge flex items-center gap-1 bg-gray-100 text-gray-500">
+                <Clock className="h-3 w-3" />
+                {o.status === "placed" 
+                  ? "Order placed" 
+                  : o.status === "accepted"
+                    ? "Store accepted"
+                    : o.status === "action_required"
+                      ? "Waiting for buyer (stock issue)"
+                      : "Store is preparing"}
+              </span>
+            )}
         </div>
       </div>
 
@@ -519,6 +608,10 @@ function RiderOrderCard({
           >
             {busy ? <Spinner /> : <Check className="h-4 w-4" />} Accept delivery
           </button>
+        ) : o.status === "action_required" ? (
+          <div className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 py-2.5 text-sm font-medium text-amber-700">
+            <AlertTriangle className="h-4 w-4" /> Waiting for buyer to respond to stock issue
+          </div>
         ) : (
           <div className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 py-2.5 text-sm font-medium text-ink-faint">
             <Clock className="h-4 w-4" /> Not ready yet — waiting for the store to pack it

@@ -16,33 +16,46 @@ export const GET = withApiLogging("/api/rider/orders", async (req: Request) => {
     return NextResponse.json({ error: "Riders only" }, { status: 403 });
   }
 
-  const scope = new URL(req.url).searchParams.get("scope") ?? "available";
+const params = new URL(req.url).searchParams;
+  const scope = params.get("scope") ?? "available";
+  const limit = Math.min(Number(params.get("limit")) || 50, 100);
+  const offset = Number(params.get("offset")) || 0;
+  const fromDate = params.get("from_date");
+  const toDate = params.get("to_date");
   const service = createServiceSupabase();
 
   let query = service
     .from("orders")
-    .select("*")
-    .order("created_at", { ascending: scope === "available" });
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (fromDate) {
+    query = query.gte("created_at", fromDate);
+  }
+  if (toDate) {
+    query = query.lte("created_at", toDate);
+  }
 
   if (scope === "available") {
-    // Unclaimed, from the start of the pipeline (placed/accepted/packed) so
+    // Unclaimed, from the start of the pipeline (placed/accepted/packed/action_required) so
     // riders can see what's coming before the seller packs it — not just
     // claimable (packed) orders. Claiming itself still requires 'packed'
     // (enforced atomically in /api/rider/claim), and already paid (online)
     // or COD.
     query = query
-      .in("status", ["placed", "accepted", "packed"])
-      .is("rider_id", null)
-      .neq("payment_status", "pending");
+      .in("status", ["placed", "accepted", "packed", "action_required"])
+      .is("rider_id", null);
   } else if (scope === "active") {
     query = query.eq("rider_id", user.id).in("status", ["packed", "out_for_delivery"]);
   } else {
     query = query.eq("rider_id", user.id).eq("status", "delivered");
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const orders = await enrichOrders(service, (data ?? []) as Record<string, unknown>[]);
-  return NextResponse.json({ orders });
+  console.log(`[rider/orders] scope=${scope} returning ${orders.length} orders (total: ${count})`);
+  return NextResponse.json({ orders, total: count ?? 0, limit, offset });
 });

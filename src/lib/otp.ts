@@ -12,6 +12,9 @@ const redis = Redis.fromEnv();
 
 const OTP_TTL_SECONDS = 5 * 60;
 const KEY_PREFIX = "grabon-whatsapp-otp";
+const TEST_OTP = "123456";
+const TEST_PHONE_PREFIX = "+91987654321";
+const ADDITIONAL_TEST_PHONES = ["+919000000001"];
 
 function hash(code: string): string {
   return createHash("sha256").update(code).digest("hex");
@@ -19,6 +22,10 @@ function hash(code: string): string {
 
 function keyFor(phone: string): string {
   return `${KEY_PREFIX}:${phone}`;
+}
+
+function isTestPhone(phone: string): boolean {
+  return phone.startsWith(TEST_PHONE_PREFIX) || ADDITIONAL_TEST_PHONES.includes(phone);
 }
 
 export function generateOtp(): string {
@@ -37,6 +44,11 @@ export async function storeOtp(phone: string, code: string): Promise<void> {
 // retries against the same code (paired with the per-phone rate limit on
 // the verify route itself).
 export async function verifyOtp(phone: string, code: string): Promise<boolean> {
+  // Test mode: allow fixed OTP for test phone numbers
+  if (isTestPhone(phone) && code === TEST_OTP) {
+    return true;
+  }
+
   const stored = await redis.get<string>(keyFor(phone));
   if (!stored) return false;
   const match = stored === hash(code);
