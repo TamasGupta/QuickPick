@@ -468,7 +468,7 @@ create policy "orders_update_admin" on orders
 drop policy if exists "orders_read_available_for_riders" on orders;
 create policy "orders_read_available_for_riders" on orders
   for select using (
-    status in ('placed', 'accepted', 'packed')
+    status in ('placed', 'accepted', 'packed', 'action_required')
     and rider_id is null
     and exists (select 1 from profiles where id = auth.uid() and role = 'rider')
   );
