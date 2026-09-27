@@ -463,6 +463,20 @@ function RiderOrderCard({
 
   return (
     <div className="card space-y-3 p-4">
+      {/* Buyer info - visible in all tabs */}
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center gap-2">
+          <UserIcon className="h-4 w-4 text-ink-faint" />
+          <span className="font-medium text-ink">{o.buyer_name}</span>
+        </div>
+        {o.buyer_phone && (
+          <a href={`tel:${o.buyer_phone.replace(/^91/, "")}`} className="flex items-center gap-1 text-xs text-brand-600 hover:underline">
+            <Phone className="h-3.5 w-3.5" />
+            {o.buyer_phone}
+          </a>
+        )}
+      </div>
+
       {/* Top row */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
