@@ -16,9 +16,12 @@ export interface RiderOrder {
   id: string;
   status: string;
   payment_status: string;
+  payment_mode: string | null;
+  delivery_payment_status: string | null;
   total: number;
   subtotal: number;
   delivery_fee: number;
+  other_charges: number;
   delivery_slot: string | null;
   created_at: string;
   rider_id: string | null;
@@ -41,6 +44,9 @@ export interface RiderOrder {
     lng: number | null;
   } | null;
   items: { id: string; name: string; qty: number }[];
+  rider_remittance_due: number;
+  rider_remittance_status: string | null;
+  razorpay_remittance_order_id: string | null;
 }
 
 // Attach buyer / address / store / items to a set of orders using the service
@@ -84,9 +90,12 @@ export async function enrichOrders(
       id: o.id as string,
       status: o.status as string,
       payment_status: o.payment_status as string,
+      payment_mode: (o.payment_mode as string) ?? null,
+      delivery_payment_status: (o.delivery_payment_status as string) ?? null,
       total: o.total as number,
       subtotal: o.subtotal as number,
       delivery_fee: o.delivery_fee as number,
+      other_charges: (o.other_charges as number) ?? 0,
       delivery_slot: (o.delivery_slot as string) ?? null,
       created_at: o.created_at as string,
       rider_id: (o.rider_id as string) ?? null,
@@ -113,6 +122,9 @@ export async function enrichOrders(
           }
         : null,
       items: itemsByOrder.get(o.id as string) ?? [],
+      rider_remittance_due: (o.rider_remittance_due as number) ?? 0,
+      rider_remittance_status: (o.rider_remittance_status as string) ?? null,
+      razorpay_remittance_order_id: (o.razorpay_remittance_order_id as string) ?? null,
     };
   });
 }
