@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar, CreditCard, Banknote, QrCode, AlertCircle, CheckCircle,
+  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar, CreditCard, Banknote, QrCode, AlertCircle, CheckCircle, X, Maximize2,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { inr } from "@/lib/utils";
@@ -28,6 +28,7 @@ function RiderOrderCard({
   const [upiData, setUpiData] = useState<{ orderId: string; amount: number; keyId: string } | null>(null);
   const [polling, setPolling] = useState(false);
   const [remittanceDue, setRemittanceDue] = useState(0);
+  const [showQrModal, setShowQrModal] = useState(false);
   const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
   const isCod = o.payment_status === "cod";
 
@@ -73,6 +74,17 @@ function RiderOrderCard({
 
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowQrModal(false);
+    };
+    if (showQrModal) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [showQrModal]);
+
   const fetchUpiQr = async (orderId: string, keyId: string) => {
     try {
       // Use Razorpay's UPI QR endpoint
@@ -82,6 +94,8 @@ function RiderOrderCard({
       const data = await res.json();
       if (data.qr_url) {
         setQrCodeUrl(data.qr_url);
+        // Auto-open modal when QR is ready
+        setShowQrModal(true);
       }
     } catch (err) {
       console.error("Failed to fetch QR:", err);
@@ -416,7 +430,8 @@ function RiderOrderCard({
                   <img
                     src={qrCodeUrl}
                     alt="UPI QR Code"
-                    className="w-48 h-48 rounded-lg border border-gray-200"
+                    className="w-48 h-48 rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80 transition-opacity"
+                    onClick={() => setShowQrModal(true)}
                   />
                 ) : (
                   <div className="w-48 h-48 bg-gray-50 rounded-lg flex items-center justify-center text-ink-faint">
@@ -424,7 +439,7 @@ function RiderOrderCard({
                   </div>
                 )}
               </div>
-              <p className="text-xs text-center text-ink-faint">Waiting for buyer to complete payment...</p>
+              <p className="text-xs text-center text-ink-faint">Auto-opened fullscreen · Tap QR to reopen · Waiting for buyer to complete payment...</p>
               <div className="flex justify-center gap-2">
                 <button
                   onClick={() => { setDeliveryStep("payment_mode"); setUpiData(null); setQrCodeUrl(null); }}
@@ -494,6 +509,41 @@ function RiderOrderCard({
         <p className="flex items-center gap-1 text-sm font-semibold text-brand-700">
           <Check className="h-4 w-4" /> Delivered
         </p>
+      )}
+
+      {/* QR Code Modal */}
+      {showQrModal && qrCodeUrl && upiData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowQrModal(false)} role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 id="qr-modal-title" className="text-lg font-semibold text-ink">Scan to Pay</h2>
+              <button
+                onClick={() => setShowQrModal(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 text-ink-faint transition-colors"
+                aria-label="Close QR code"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="text-center mb-4">
+              <p className="text-sm text-ink-faint mb-1">Ask the buyer to scan with any UPI app</p>
+              <p className="text-3xl font-bold text-brand-700">{inr(upiData.amount / 100)}</p>
+            </div>
+            
+            <div className="flex justify-center mb-4">
+              <img
+                src={qrCodeUrl}
+                alt="UPI QR Code for payment"
+                className="w-72 h-72 rounded-lg border border-gray-200"
+              />
+            </div>
+            
+            <div className="rounded-lg bg-gray-50 p-3 text-center text-xs text-ink-faint">
+              Order: #{upiData.orderId.slice(0, 8)}...
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
