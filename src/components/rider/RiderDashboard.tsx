@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar,
+  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar, CreditCard, Banknote, QrCode, AlertCircle, CheckCircle,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { createClient } from "@/lib/supabase/client";
@@ -11,8 +11,9 @@ import { inr, formatIST } from "@/lib/utils";
 import { notify } from "@/store/notify";
 import type { RiderOrder } from "@/lib/rider";
 import type { LedgerEntry } from "@/lib/types";
+import { RiderOrderCard } from "./RiderOrderCard";
 
-type Tab = "available" | "active" | "history" | "earnings" | "profile";
+export type Tab = "available" | "active" | "history" | "earnings" | "profile";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "available", label: "Available" },
@@ -64,7 +65,10 @@ const [tab, setTab] = useState<Tab>("available");
     if (t === "earnings" || t === "profile") return;
     if (!opts.silent) setLoading(true);
     try {
-      const res = await fetch(buildUrl(t), { cache: "no-store" });
+      const res = await fetch(buildUrl(t), { 
+        cache: "no-store",
+        credentials: 'include',
+      });
       console.log(`[rider] load ${t} response status:`, res.status);
       if (!res.ok) {
         const errText = await res.text();
@@ -89,7 +93,10 @@ const [tab, setTab] = useState<Tab>("available");
   // Poll available count for the tab badge.
   const refreshAvailCount = useCallback(async () => {
     try {
-      const res = await fetch(`/api/rider/orders?scope=available&limit=1`, { cache: "no-store" });
+      const res = await fetch(`/api/rider/orders?scope=available&limit=1`, { 
+        cache: "no-store",
+        credentials: 'include',
+      });
       if (!res.ok) {
         console.error(`[rider] refreshAvailCount failed:`, res.status, await res.text());
         return;
@@ -152,21 +159,25 @@ const [tab, setTab] = useState<Tab>("available");
     };
   }, [refreshAvailCount, load]);
 
-  async function act(action: string, order_id: string, otp?: string) {
+  async function act(action: string, order_id: string, otp?: string, paymentMode?: "cash" | "upi") {
     setBusyId(order_id);
     const res = await fetch(`/api/rider/${action}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order_id, otp }),
+      body: JSON.stringify({ order_id, otp, payment_mode: paymentMode }),
+      credentials: 'include',
     });
     const json = await res.json();
     setBusyId(null);
     if (!res.ok) {
       notify.error(json.error ?? "Action failed");
-      return false;
+      if (json.requirePayment) {
+        return { ok: false, requirePayment: true };
+      }
+      return { ok: false };
     }
     await Promise.all([load(tab), refreshAvailCount()]);
-    return true;
+    return { ok: true, remittanceDue: json.remittanceDue };
   }
 
   return (
@@ -298,6 +309,20 @@ function RiderEarnings() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [lifetime, setLifetime] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [remittanceOrders, setRemittanceOrders] = useState<Array<{
+    id: string;
+    order_id: string;
+    amount: number;
+    status: string;
+    razorpay_order_id: string | null;
+    key_id: string | null;
+  }>>([]);
+  const [selectedRemittance, setSelectedRemittance] = useState<{
+    orderId: string;
+    amount: number;
+    keyId: string;
+    razorpayOrderId: string;
+  } | null>(null);
 
   // Realtime-driven, not polled: ledger_entries already has an RLS policy
   // letting a rider read rows where rider_id = auth.uid() directly (unlike
@@ -320,6 +345,13 @@ function RiderEarnings() {
       setLoading(false);
     }
 
+    async function loadRemittances() {
+      const res = await fetch("/api/rider/remittances", { cache: "no-store" });
+      const json = await res.json();
+      if (!alive) return;
+      setRemittanceOrders(json.remittances ?? []);
+    }
+
     // getSession() reads the cached session locally — no network round-trip,
     // unlike getUser(). UI state feeding an RLS-scoped subscription, not a
     // security decision.
@@ -327,12 +359,18 @@ function RiderEarnings() {
       const user = data.session?.user;
       if (!user || !alive) return;
       load();
+      loadRemittances();
       channel = supabase
         .channel(`rider-ledger-${user.id}`)
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "ledger_entries", filter: `rider_id=eq.${user.id}` },
           load
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "orders", filter: `rider_id=eq.${user.id}` },
+          loadRemittances
         )
         .subscribe();
     });
@@ -345,6 +383,7 @@ function RiderEarnings() {
 
   const owed = entries.filter((e) => !e.settled);
   const owedTotal = owed.reduce((s, e) => s + Number(e.amount), 0);
+  const pendingRemittances = remittanceOrders.filter((r) => r.status === "pending");
 
   if (loading) {
     return (
@@ -366,6 +405,48 @@ function RiderEarnings() {
           <p className="mt-1 text-lg font-bold text-ink">{inr(lifetime)}</p>
         </div>
       </div>
+
+      {/* Pending Remittances */}
+      {pendingRemittances.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-amber-700 flex items-center gap-1">
+              <AlertCircle className="h-4 w-4" />
+              Remittance Due ({pendingRemittances.length})
+            </p>
+          </div>
+          <div className="card divide-y divide-gray-100">
+            {pendingRemittances.map((r) => (
+              <div key={r.id} className="flex flex-col gap-2 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-amber-600" />
+                    <span className="font-medium text-ink">Remit to Platform</span>
+                    <span className="badge bg-amber-50 text-amber-700">₹{r.amount}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedRemittance({
+                        orderId: r.order_id,
+                        amount: r.amount,
+                        keyId: r.key_id ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "",
+                        razorpayOrderId: r.razorpay_order_id ?? "",
+                      });
+                    }}
+                    className="btn-primary text-xs"
+                  >
+                    <QrCode className="h-3.5 w-3.5" /> Pay via QR
+                  </button>
+                </div>
+                <p className="text-xs text-ink-faint ml-7">
+                  Order #{r.order_id.slice(0, 8)} · COD cash collected · You keep delivery fee, remit rest to platform
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-ink-faint">
         Online orders: the platform pays you directly. COD orders: the seller collected your share in cash along
         with theirs — they'll settle up with you.
@@ -441,225 +522,6 @@ function RiderProfile({
         <LogOut className="h-4 w-4" />
         {loggingOut ? "Logging out…" : "Log out"}
       </button>
-    </div>
-  );
-}
-
-function RiderOrderCard({
-  o,
-  tab,
-  busy,
-  act,
-}: {
-  o: RiderOrder;
-  tab: Tab;
-  busy: boolean;
-  act: (action: string, id: string, otp?: string) => Promise<boolean>;
-}) {
-  const [otp, setOtp] = useState("");
-  const [showItems, setShowItems] = useState(false);
-  const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
-  const isCod = o.payment_status === "cod";
-
-  return (
-    <div className="card space-y-3 p-4">
-      {/* Top row */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-            <Store className="h-5 w-5" />
-          </span>
-          <div className="leading-tight">
-            <p className="text-sm font-bold text-ink">{o.store_name}</p>
-            <p className="text-xs text-ink-faint">
-              #{o.id.slice(0, 8)} · {itemCount} item{itemCount === 1 ? "" : "s"}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <span
-            className={`badge ${isCod ? "bg-amber-100 text-amber-700" : "bg-brand-50 text-brand-700"}`}
-          >
-            {isCod ? "Collect COD" : "Prepaid"}
-          </span>
-{/* Visible from the moment the order is placed, not just once
-              packed — see the "available" scope query in /api/rider/orders. */}
-            {tab === "available" && o.status !== "packed" && (
-              <span className="badge flex items-center gap-1 bg-gray-100 text-gray-500">
-                <Clock className="h-3 w-3" />
-                {o.status === "placed" 
-                  ? "Order placed" 
-                  : o.status === "accepted"
-                    ? "Store accepted"
-                    : o.status === "action_required"
-                      ? "Waiting for buyer (stock issue)"
-                      : "Store is preparing"}
-              </span>
-            )}
-        </div>
-      </div>
-
-      {/* Earnings + total */}
-      <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm">
-        <span className="flex items-center gap-1 font-semibold text-brand-700">
-          <IndianRupee className="h-3.5 w-3.5" /> {inr(o.delivery_fee)} earning
-        </span>
-        <span className="text-ink-soft">
-          Order {inr(o.total)}
-          {isCod && <span className="font-semibold text-ink"> · collect {inr(o.total)}</span>}
-        </span>
-      </div>
-
-      {/* Pickup leg: before the rider has collected the order, route to the
-          store, not the buyer — they haven't got anything to deliver yet. */}
-      {tab === "active" && o.status === "packed" && o.store && (
-        <div className="space-y-2 rounded-xl border border-gray-100 p-3">
-          <div className="flex items-start gap-2">
-            <Store className="mt-0.5 h-4 w-4 shrink-0 text-accent-500" />
-            <div className="text-sm">
-              <p className="font-semibold text-ink">{o.store_name}</p>
-              <p className="text-ink-soft">
-                {[o.store.address_line, o.store.city, o.store.pincode].filter(Boolean).join(", ") || "Address not pinned"}
-              </p>
-            </div>
-          </div>
-          <a
-            href={directionsHref(o.store, [o.store.address_line, o.store.city, o.store.pincode])}
-            target="_blank"
-            rel="noreferrer"
-            className="btn-outline w-full"
-          >
-            <Navigation className="h-4 w-4" /> Navigate to store
-          </a>
-        </div>
-      )}
-
-      {/* Delivery leg: after pickup, route to the buyer's address. */}
-      {tab === "active" && o.status === "out_for_delivery" && o.address && (
-        <div className="space-y-2 rounded-xl border border-gray-100 p-3">
-          <div className="flex items-start gap-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent-500" />
-            <div className="text-sm">
-              <p className="font-semibold text-ink">{o.buyer_name}</p>
-              <p className="text-ink-soft">
-                {[o.address.line1, o.address.line2, o.address.city, o.address.pincode]
-                  .filter(Boolean)
-                  .join(", ")}
-              </p>
-              {o.address.lat != null && (
-                <p className="text-[11px] text-brand-600">Exact GPS location pinned</p>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <a
-              href={directionsHref(o.address, [o.address.line1, o.address.line2, o.address.city, o.address.pincode])}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-outline flex-1"
-            >
-              <Navigation className="h-4 w-4" /> Navigate to customer
-            </a>
-            {o.buyer_phone && (
-              <a href={`tel:${o.buyer_phone.replace(/^91/, "")}`} className="btn-outline flex-1">
-                <Phone className="h-4 w-4" /> Call
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Items - expandable list */}
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => setShowItems(!showItems)}
-          className="flex items-center justify-between w-full text-left text-xs text-ink-faint hover:text-ink"
-        >
-          <span>
-            {o.items.slice(0, 3).map((i) => `${i.name}×${i.qty}`).join(", ")}
-            {o.items.length > 3 ? ` +${o.items.length - 3} more` : ""}
-          </span>
-          <span className="flex items-center gap-1 font-medium">
-            {itemCount} item{itemCount === 1 ? "" : "s"}
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showItems ? "rotate-180" : ""}`} />
-          </span>
-        </button>
-
-        {showItems && (
-          <ul className="space-y-1 border-t pt-2">
-            {o.items.map((it) => (
-              <li key={it.id} className="flex justify-between text-sm">
-                <span>{it.name} × {it.qty}</span>
-                <span className="font-medium">{inr((o.total / itemCount) * it.qty)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Actions */}
-      {tab === "available" && (
-        o.status === "packed" ? (
-          <button
-            onClick={() => act("claim", o.id)}
-            disabled={busy}
-            className="btn-primary w-full"
-          >
-            {busy ? <Spinner /> : <Check className="h-4 w-4" />} Accept delivery
-          </button>
-        ) : o.status === "action_required" ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 py-2.5 text-sm font-medium text-amber-700">
-            <AlertTriangle className="h-4 w-4" /> Waiting for buyer to respond to stock issue
-          </div>
-        ) : (
-          <div className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 py-2.5 text-sm font-medium text-ink-faint">
-            <Clock className="h-4 w-4" /> Not ready yet — waiting for the store to pack it
-          </div>
-        )
-      )}
-
-      {tab === "active" && o.status === "packed" && (
-        <button
-          onClick={() => act("pickup", o.id)}
-          disabled={busy}
-          className="btn-primary w-full"
-        >
-          {busy ? <Spinner /> : <Package className="h-4 w-4" />} Mark picked up
-        </button>
-      )}
-
-      {tab === "active" && o.status === "out_for_delivery" && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <input
-              inputMode="numeric"
-              maxLength={4}
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-              placeholder="Enter 4-digit OTP"
-              className="input text-center tracking-[0.3em]"
-            />
-            <button
-              onClick={async () => {
-                const ok = await act("deliver", o.id, otp);
-                if (!ok) setOtp("");
-              }}
-              disabled={busy || otp.length !== 4}
-              className="btn-primary shrink-0"
-            >
-              {busy ? <Spinner /> : <Check className="h-4 w-4" />} Deliver
-            </button>
-          </div>
-          <p className="text-[11px] text-ink-faint">Ask the customer for their delivery OTP.</p>
-        </div>
-      )}
-
-      {tab === "history" && (
-        <p className="flex items-center gap-1 text-sm font-semibold text-brand-700">
-          <Check className="h-4 w-4" /> Delivered
-        </p>
-      )}
     </div>
   );
 }

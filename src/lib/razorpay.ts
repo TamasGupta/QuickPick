@@ -25,3 +25,15 @@ export function verifyPaymentSignature(params: {
   const b = Buffer.from(params.razorpay_signature);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+
+// Validate Razorpay webhook signature (HMAC-SHA256 with webhook secret).
+// rawBody must be the unparsed request body string.
+export function validateWebhookSignature(rawBody: string, signature: string, secret: string): boolean {
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}

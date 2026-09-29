@@ -74,7 +74,7 @@ const DELIVERY_SLOT = "Now (10–20 min)";
 
 declare global {
   interface Window {
-    Razorpay?: any;
+    Razorpay: any;
   }
 }
 
