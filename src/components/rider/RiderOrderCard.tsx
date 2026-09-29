@@ -430,7 +430,7 @@ function RiderOrderCard({
                   <img
                     src={qrCodeUrl}
                     alt="UPI QR Code"
-                    className="w-48 h-48 rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80 transition-opacity"
+                    className="w-48 h-48 rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80 transition-opacity object-contain object-center"
                     onClick={() => setShowQrModal(true)}
                   />
                 ) : (
@@ -535,7 +535,7 @@ function RiderOrderCard({
               <img
                 src={qrCodeUrl}
                 alt="UPI QR Code for payment"
-                className="w-96 h-96 rounded-lg border border-gray-200 shadow-md"
+                className="w-96 h-96 rounded-lg border border-gray-200 shadow-md object-contain object-center"
               />
             </div>
             
