@@ -24,19 +24,15 @@ export const GET = withApiLogging("/api/rider/upi-qr", async (req: Request) => {
 
   const service = createServiceSupabase();
 
-  // Verify order belongs to rider
+  // Verify order belongs to rider (orderId is the Razorpay order ID)
   const { data: order } = await service
     .from("orders")
     .select("id, razorpay_delivery_order_id, rider_id")
-    .eq("id", orderId)
+    .eq("razorpay_delivery_order_id", orderId)
     .single();
 
   if (!order || order.rider_id !== user.id) {
     return NextResponse.json({ error: "Not your order" }, { status: 403 });
-  }
-
-  if (order.razorpay_delivery_order_id !== orderId) {
-    return NextResponse.json({ error: "Invalid Razorpay order" }, { status: 400 });
   }
 
   try {
