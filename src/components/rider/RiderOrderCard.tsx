@@ -514,32 +514,32 @@ function RiderOrderCard({
       {/* QR Code Modal */}
       {showQrModal && qrCodeUrl && upiData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowQrModal(false)} role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl p-8 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 id="qr-modal-title" className="text-lg font-semibold text-ink">Scan to Pay</h2>
+              <h2 id="qr-modal-title" className="text-xl font-semibold text-ink">Scan to Pay</h2>
               <button
                 onClick={() => setShowQrModal(false)}
                 className="p-2 rounded-lg hover:bg-gray-100 text-ink-faint transition-colors"
                 aria-label="Close QR code"
               >
-                <X className="h-5 w-5" />
+                <X className="h-6 w-6" />
               </button>
             </div>
             
-            <div className="text-center mb-4">
-              <p className="text-sm text-ink-faint mb-1">Ask the buyer to scan with any UPI app</p>
-              <p className="text-3xl font-bold text-brand-700">{inr(upiData.amount / 100)}</p>
+            <div className="text-center mb-6">
+              <p className="text-base text-ink-faint mb-2">Ask the buyer to scan with any UPI app</p>
+              <p className="text-4xl font-bold text-brand-700">{inr(upiData.amount / 100)}</p>
             </div>
             
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center mb-6">
               <img
                 src={qrCodeUrl}
                 alt="UPI QR Code for payment"
-                className="w-72 h-72 rounded-lg border border-gray-200"
+                className="w-96 h-96 rounded-lg border border-gray-200 shadow-md"
               />
             </div>
             
-            <div className="rounded-lg bg-gray-50 p-3 text-center text-xs text-ink-faint">
+            <div className="rounded-lg bg-gray-50 p-4 text-center text-sm text-ink-faint">
               Order: #{upiData.orderId.slice(0, 8)}...
             </div>
           </div>
