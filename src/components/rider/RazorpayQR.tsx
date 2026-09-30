@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 interface RazorpayQRProps {
   razorpayOrderId: string;
   amount: number;
