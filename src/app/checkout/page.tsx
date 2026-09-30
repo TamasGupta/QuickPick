@@ -72,12 +72,6 @@ const LocationPicker = dynamic(() => import("@/components/LocationPicker").then(
 // since sellers/riders display it on their order cards.
 const DELIVERY_SLOT = "Now (10–20 min)";
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
 export default function CheckoutPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -87,7 +81,6 @@ export default function CheckoutPage() {
   const [loadingAddr, setLoadingAddr] = useState(true);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState<string>("");
-  const [pay, setPay] = useState<"online" | "cod">("online");
   const [placing, setPlacing] = useState(false);
   const [showAddr, setShowAddr] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -156,13 +149,6 @@ export default function CheckoutPage() {
   }
 
   useEffect(() => {
-    // Load Razorpay checkout script once.
-    if (!document.getElementById("rzp-sdk")) {
-      const s = document.createElement("script");
-      s.id = "rzp-sdk";
-      s.src = "https://checkout.razorpay.com/v1/checkout.js";
-      document.body.appendChild(s);
-    }
     // getSession() reads the cached session locally — no network round-trip,
     // unlike getUser(). The redirect below is a client-side UX convenience;
     // the actual order-creation authorization happens server-side in
@@ -321,7 +307,6 @@ export default function CheckoutPage() {
     if (storeClosed) return notify.error("This store is currently closed.");
     setPlacing(true);
     try {
-      // 1) Create the order server-side.
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -329,81 +314,15 @@ export default function CheckoutPage() {
           seller_id: sellerId(),
           address_id: addressId,
           delivery_slot: DELIVERY_SLOT,
-          payment_method: pay,
+          payment_method: "cod",
           items: items.map((i) => ({ product_id: i.id, name: i.name, price: i.price, qty: i.qty })),
         }),
       });
       const order = await res.json();
       if (!res.ok) throw new Error(order.error || "Failed to create order");
 
-      if (pay === "cod") {
-        clear();
-        router.push(`/orders/${order.id}?placed=1`);
-        return;
-      }
-
-      // 2) Create Razorpay order and open checkout.
-      const payRes = await fetch("/api/payment/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id: order.id }),
-      });
-      const rp = await payRes.json();
-      if (!payRes.ok) throw new Error(rp.error || "Payment init failed");
-
-      // The order row already exists at this point (status: 'placed',
-      // payment_status: 'pending') so Razorpay has something to reference —
-      // but if the payment never actually succeeds, that row must not be
-      // left behind looking like a real order. `paymentSucceeded` guards
-      // against a race where the modal's dismiss event fires around the same
-      // time as a genuine success: once Razorpay's own handler has fired at
-      // all, we never cancel, regardless of what happens next.
-      let paymentSucceeded = false;
-
-      async function cancelUnpaidOrder() {
-        // Scoped to payment_status='pending' so this can never touch an
-        // order a concurrent verify() call just marked paid.
-        await supabase
-          .from("orders")
-          .update({ status: "cancelled", payment_status: "failed" })
-          .eq("id", order.id)
-          .eq("payment_status", "pending");
-      }
-
-      const rzp = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: rp.amount,
-        currency: "INR",
-        name: "GrabOn",
-        description: `Order ${order.id.slice(0, 8)}`,
-        order_id: rp.razorpay_order_id,
-        handler: async (resp: any) => {
-          paymentSucceeded = true;
-          const v = await fetch("/api/payment/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ order_id: order.id, ...resp }),
-          });
-          if (v.ok) {
-            clear();
-            router.push(`/orders/${order.id}?placed=1`);
-          } else {
-            notify.error("Payment verification failed. Please contact support.");
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            if (!paymentSucceeded) cancelUnpaidOrder();
-          },
-        },
-        theme: { color: "#12924f" },
-      });
-      rzp.on("payment.failed", () => {
-        if (paymentSucceeded) return;
-        cancelUnpaidOrder();
-        notify.error("Payment failed — your order was not placed. Please try again.");
-      });
-      rzp.open();
+      clear();
+      router.push(`/orders/${order.id}?placed=1`);
     } catch (err) {
       notify.error((err as Error).message);
     } finally {
@@ -588,18 +507,17 @@ export default function CheckoutPage() {
         )
       )}
 
-      {/* Payment */}
+      {/* Payment - COD only */}
       <section className="card p-4">
         <h2 className="font-bold">Payment</h2>
         <div className="mt-3 space-y-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input type="radio" checked={pay === "online"} onChange={() => setPay("online")} />
-            Pay online (UPI / Card / Wallet) via Razorpay
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" checked={pay === "cod"} onChange={() => setPay("cod")} />
-            Cash on Delivery
-          </label>
+          <div className="flex items-center gap-2 text-amber-700 bg-amber-50 rounded-lg p-3">
+            <span className="text-lg">💰</span>
+            <span className="font-medium">Cash on Delivery only</span>
+          </div>
+          <p className="text-xs text-ink-faint">
+            You will pay the delivery partner at the time of delivery (cash or UPI).
+          </p>
         </div>
       </section>
 
@@ -614,7 +532,7 @@ export default function CheckoutPage() {
       </section>
 
       <button className="btn-primary w-full" disabled={placing || needsPin || outOfRange || storeClosed} onClick={placeOrder}>
-        {placing ? "Placing order…" : pay === "cod" ? `Place order · ${inr(total)}` : `Pay ${inr(total)}`}
+        {placing ? "Placing order…" : `Place order · ${inr(total)}`}
       </button>
     </div>
   );
