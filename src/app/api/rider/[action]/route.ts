@@ -71,7 +71,9 @@ export const POST = withApiLogging(
     if (!order || order.rider_id !== user.id || order.status !== "out_for_delivery") {
       return NextResponse.json({ error: "Cannot complete this order" }, { status: 409 });
     }
-    if (!body.otp || body.otp.trim() !== order.delivery_otp) {
+    const enteredOtp = body.otp?.trim();
+    const storedOtp = order.delivery_otp?.trim();
+    if (!enteredOtp || enteredOtp !== storedOtp) {
       return NextResponse.json({ error: "Incorrect delivery OTP" }, { status: 422 });
     }
 

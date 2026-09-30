@@ -152,10 +152,8 @@ const [tab, setTab] = useState<Tab>("available");
         refreshAvailable
       )
       .subscribe();
-    const fallback = setInterval(refreshAvailable, 60000);
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(fallback);
     };
   }, [refreshAvailCount, load]);
 
