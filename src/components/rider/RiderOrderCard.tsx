@@ -120,7 +120,15 @@ function RiderOrderCard({
         (payload) => {
           const newStatus = payload.new?.delivery_payment_status;
           if (newStatus === "paid") {
-            completeDelivery("upi");
+            if (otp && otp.length === 4) {
+              completeDelivery("upi");
+            } else {
+              console.error("[realtime] OTP not available for delivery completion");
+              notify.error("Session expired, please re-enter OTP");
+              setDeliveryStep("otp");
+              setUpiData(null);
+              setQrCodeUrl(null);
+            }
           } else if (newStatus === "failed") {
             notify.error("Payment failed");
             setDeliveryStep("payment_mode");
@@ -148,10 +156,33 @@ function RiderOrderCard({
     }
   };
 
+  const verifyOtp = async () => {
+    if (otp.length !== 4) return false;
+    try {
+      const res = await fetch(`/api/rider/deliver`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: o.id, otp, payment_mode: "cash" }),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        return true;
+      }
+      const json = await res.json();
+      notify.error(json.error ?? "Invalid OTP");
+      return false;
+    } catch (err) {
+      console.error(err);
+      notify.error("Verification failed");
+      return false;
+    }
+  };
+
   const handleDeliverClick = async () => {
     if (otp.length !== 4) return;
     if (isCod) {
-      setDeliveryStep("payment_mode");
+      const ok = await verifyOtp();
+      if (ok) setDeliveryStep("payment_mode");
     } else {
       completeDelivery("upi");
     }
