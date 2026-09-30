@@ -29,6 +29,7 @@ function RiderOrderCard({
   const [upiData, setUpiData] = useState<{ orderId: string; amount: number; keyId: string } | null>(null);
   const [remittanceDue, setRemittanceDue] = useState(0);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
   const isCod = o.payment_status === "cod";
 
@@ -158,6 +159,7 @@ function RiderOrderCard({
 
   const verifyOtp = async () => {
     if (otp.length !== 4) return false;
+    setVerifyingOtp(true);
     try {
       const res = await fetch(`/api/rider/deliver`, {
         method: "POST",
@@ -175,6 +177,8 @@ function RiderOrderCard({
       console.error(err);
       notify.error("Verification failed");
       return false;
+    } finally {
+      setVerifyingOtp(false);
     }
   };
 
@@ -409,10 +413,10 @@ function RiderOrderCard({
                 />
                 <button
                   onClick={handleDeliverClick}
-                  disabled={busy || otp.length !== 4}
+                  disabled={busy || verifyingOtp || otp.length !== 4}
                   className="btn-primary shrink-0"
                 >
-                  {busy ? <Spinner /> : <Check className="h-4 w-4" />} Verify OTP
+                  {(busy || verifyingOtp) ? <Spinner /> : <Check className="h-4 w-4" />} Verify OTP
                 </button>
               </div>
               <p className="text-[11px] text-ink-faint">Ask the customer for their delivery OTP.</p>
@@ -531,10 +535,10 @@ function RiderOrderCard({
                 />
                 <button
                   onClick={handleDeliverClick}
-                  disabled={busy || otp.length !== 4}
+                  disabled={busy || verifyingOtp || otp.length !== 4}
                   className="btn-primary shrink-0"
                 >
-                  {busy ? <Spinner /> : <Check className="h-4 w-4" />} Deliver
+                  {(busy || verifyingOtp) ? <Spinner /> : <Check className="h-4 w-4" />} Deliver
                 </button>
               </div>
               <p className="text-[11px] text-ink-faint">Ask the customer for their delivery OTP.</p>
