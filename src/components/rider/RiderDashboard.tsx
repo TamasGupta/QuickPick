@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar, CreditCard, Banknote, QrCode, AlertCircle, CheckCircle,
+  Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar, CreditCard, Banknote, QrCode, AlertCircle, CheckCircle,
 } from "lucide-react";
 import { Spinner } from "@/components/Loader";
 import { createClient } from "@/lib/supabase/client";
@@ -211,7 +211,7 @@ const [tab, setTab] = useState<Tab>("available");
       {tab === "earnings" ? (
         <RiderEarnings />
       ) : tab === "profile" ? (
-        <RiderProfile name={name} email={email} phone={phone} />
+        <RiderProfile name={name} phone={phone} />
       ) : (
         <>
         <div className="flex flex-col gap-3 px-1">
@@ -446,8 +446,8 @@ function RiderEarnings() {
       )}
 
       <p className="text-xs text-ink-faint">
-        Online orders: the platform pays you directly. COD orders: the seller collected your share in cash along
-        with theirs — they'll settle up with you.
+        Online orders: the platform pays you directly. COD orders: you collected cash from buyer — keep
+        delivery fee as earnings, remit the rest (subtotal + platform fee) to platform via QR.
       </p>
       <div className="card divide-y divide-gray-100">
         {entries.length === 0 ? (
@@ -475,11 +475,9 @@ function RiderEarnings() {
 
 function RiderProfile({
   name,
-  email,
   phone,
 }: {
   name: string;
-  email: string | null;
   phone: string | null;
 }) {
   const router = useRouter();
@@ -502,10 +500,6 @@ function RiderProfile({
         <div className="min-w-0">
           <p className="truncate font-semibold text-ink">{name}</p>
           <p className="mt-1 flex items-center gap-1 text-xs text-ink-soft">
-            <Mail className="h-3 w-3" />
-            {email ?? "No email on file"}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-soft">
             <Phone className="h-3 w-3" />
             {phone ? `+${phone}` : "No phone on file"}
           </p>
