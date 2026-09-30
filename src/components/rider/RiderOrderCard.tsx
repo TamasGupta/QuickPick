@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar, CreditCard, Banknote, QrCode, AlertCircle, CheckCircle, X, Maximize2,
 } from "lucide-react";
@@ -26,7 +27,6 @@ function RiderOrderCard({
   const [deliveryStep, setDeliveryStep] = useState<"otp" | "payment_mode" | "upi_qr" | "cash_complete">("otp");
   const [paymentMode, setPaymentMode] = useState<"cash" | "upi" | null>(null);
   const [upiData, setUpiData] = useState<{ orderId: string; amount: number; keyId: string } | null>(null);
-  const [polling, setPolling] = useState(false);
   const [remittanceDue, setRemittanceDue] = useState(0);
   const [showQrModal, setShowQrModal] = useState(false);
   const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
@@ -59,7 +59,7 @@ function RiderOrderCard({
           });
           // Fetch QR code image URL
           fetchUpiQr(data.razorpay_order_id, data.key_id);
-          startPolling();
+          // Realtime subscription auto-starts when deliveryStep becomes "upi_qr"
         }
       } catch (err) {
         console.error(err);
@@ -102,32 +102,39 @@ function RiderOrderCard({
     }
   };
 
-  const startPolling = () => {
-    setPolling(true);
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/rider/delivery-payment-status?order_id=${o.id}`, {
-          credentials: 'include',
-        });
-        const data = await res.json();
-        if (data.delivery_payment_status === "paid") {
-          clearInterval(interval);
-          setPolling(false);
-          completeDelivery("upi");
-        } else if (data.delivery_payment_status === "failed") {
-          clearInterval(interval);
-          setPolling(false);
-          notify.error("Payment failed");
-          setDeliveryStep("payment_mode");
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }, 3000);
+  // Supabase Realtime subscription for payment status updates
+  useEffect(() => {
+    if (deliveryStep !== "upi_qr" || !upiData) return;
 
-    // Cleanup after 5 minutes
-    setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
-  };
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`order-payment-${o.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "orders",
+          filter: `id=eq.${o.id}`,
+        },
+        (payload) => {
+          const newStatus = payload.new?.delivery_payment_status;
+          if (newStatus === "paid") {
+            completeDelivery("upi");
+          } else if (newStatus === "failed") {
+            notify.error("Payment failed");
+            setDeliveryStep("payment_mode");
+            setUpiData(null);
+            setQrCodeUrl(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [deliveryStep, upiData, o.id]);
 
   const completeDelivery = async (mode: "cash" | "upi") => {
     const result = await act("deliver", o.id, otp, mode);
