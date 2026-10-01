@@ -73,6 +73,14 @@ function RiderOrderCard({
     }
   };
 
+  // Check if payment was already captured (e.g., from previous QR attempt)
+  useEffect(() => {
+    if (deliveryStep === "upi_qr" && upiData && o.delivery_payment_status === "paid") {
+      // Payment already captured - complete delivery
+      completeDelivery("upi");
+    }
+  }, [deliveryStep, upiData, o.delivery_payment_status]);
+
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
   // Close modal on Escape key
@@ -97,9 +105,16 @@ function RiderOrderCard({
         setQrCodeUrl(data.qr_url);
         // Auto-open modal when QR is ready
         setShowQrModal(true);
+      } else {
+        throw new Error(data.error || "Failed to generate QR code");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch QR:", err);
+      notify.error(err.message || "Failed to generate QR code. Please try again or use cash.");
+      // Reset state so rider can retry or switch to cash
+      setDeliveryStep("payment_mode");
+      setUpiData(null);
+      setQrCodeUrl(null);
     }
   };
 

@@ -68,6 +68,7 @@ export const GET = withApiLogging("/api/rider/upi-qr", async (req: Request) => {
     });
   } catch (err: any) {
     console.error("[upi-qr] Razorpay QR creation failed:", err);
-    return NextResponse.json({ error: "Failed to generate QR code" }, { status: 500 });
+    const message = err?.error?.description || err?.message || "Failed to generate QR code";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 });
