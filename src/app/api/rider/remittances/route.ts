@@ -32,7 +32,7 @@ export const GET = withApiLogging("/api/rider/remittances", async (req: Request)
       amount: o.rider_remittance_due,
       status: o.rider_remittance_status,
       razorpay_order_id: o.razorpay_remittance_order_id,
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      key_id: process.env.RAZORPAY_KEY_ID,
     })),
   });
 });
