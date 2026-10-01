@@ -42,7 +42,7 @@ export const POST = withApiLogging("/api/rider/create-remittance-payment", async
       razorpay_order_id: rzpOrder.id,
       amount: rzpOrder.amount,
       currency: rzpOrder.currency,
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+key_id: process.env.RAZORPAY_KEY_ID,
       remittance_due: order.rider_remittance_due,
     });
   }
@@ -68,7 +68,7 @@ export const POST = withApiLogging("/api/rider/create-remittance-payment", async
     razorpay_order_id: rzpOrder.id,
     amount: rzpOrder.amount,
     currency: rzpOrder.currency,
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+    key_id: process.env.RAZORPAY_KEY_ID,
     remittance_due: order.rider_remittance_due,
   });
 });
