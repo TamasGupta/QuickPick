@@ -19,7 +19,7 @@ export const POST = withApiLogging(
     return NextResponse.json({ error: "Riders only" }, { status: 403 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { order_id?: string; otp?: string; payment_mode?: "cash" | "upi" };
+  const body = (await req.json().catch(() => ({}))) as { order_id?: string; otp?: string; payment_mode?: "cash" | "upi"; verify_only?: boolean };
   const orderId = body.order_id;
   if (!orderId) return NextResponse.json({ error: "order_id required" }, { status: 400 });
 
@@ -75,6 +75,11 @@ export const POST = withApiLogging(
     const storedOtp = order.delivery_otp?.trim();
     if (!enteredOtp || enteredOtp !== storedOtp) {
       return NextResponse.json({ error: "Incorrect delivery OTP" }, { status: 422 });
+    }
+
+    // If verify_only, just confirm OTP is valid
+    if (body.verify_only) {
+      return NextResponse.json({ ok: true, otp_verified: true });
     }
 
     const isCod = order.payment_status === "cod";

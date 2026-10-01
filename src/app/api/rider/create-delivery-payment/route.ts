@@ -9,12 +9,17 @@ export const POST = withApiLogging("/api/rider/create-delivery-payment", async (
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  console.log("[create-delivery-payment] Auth user:", user?.id, user?.email);
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  if (!(await requireRider(supabase, user))) {
+  
+  const isRider = await requireRider(supabase, user);
+  console.log("[create-delivery-payment] Is rider:", isRider, "user.id:", user.id);
+  if (!isRider) {
     return NextResponse.json({ error: "Riders only" }, { status: 403 });
   }
 
   const { order_id, payment_mode } = await req.json();
+  console.log("[create-delivery-payment] Request:", { order_id, payment_mode });
   if (!order_id || !payment_mode) {
     return NextResponse.json({ error: "order_id and payment_mode required" }, { status: 400 });
   }
@@ -31,14 +36,16 @@ export const POST = withApiLogging("/api/rider/create-delivery-payment", async (
     .eq("id", order_id)
     .single();
 
+  console.log("[create-delivery-payment] Order fetch:", { order: order?.id, orderErr: orderErr?.message, riderId: order?.rider_id, userId: user.id, status: order?.status });
   if (orderErr || !order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (order.rider_id !== user.id) return NextResponse.json({ error: "Not your order" }, { status: 403 });
-  if (order.status !== "out_for_delivery") return NextResponse.json({ error: "Order not out for delivery" }, { status: 409 });
+  if (order.status !== "out_for_delivery") return NextResponse.json({ error: "Order not out for delivery", status: order.status }, { status: 409 });
 
   // For UPI: create Razorpay order for buyer to scan
   if (payment_mode === "upi") {
     if (order.razorpay_delivery_order_id) {
       // Reuse existing order
+      console.log("[create-delivery-payment] Reusing existing Razorpay order:", order.razorpay_delivery_order_id);
       const rzp = getRazorpay();
       const rzpOrder = await rzp.orders.fetch(order.razorpay_delivery_order_id);
       return NextResponse.json({
@@ -49,6 +56,7 @@ export const POST = withApiLogging("/api/rider/create-delivery-payment", async (
       });
     }
 
+    console.log("[create-delivery-payment] Creating new Razorpay order for amount:", order.total);
     const rzp = getRazorpay();
     const amountPaise = Math.round(order.total * 100);
     const rzpOrder = await rzp.orders.create({
@@ -61,6 +69,7 @@ export const POST = withApiLogging("/api/rider/create-delivery-payment", async (
         payment_mode: "upi",
       },
     });
+    console.log("[create-delivery-payment] Razorpay order created:", rzpOrder.id);
 
     await service
       .from("orders")

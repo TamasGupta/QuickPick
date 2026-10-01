@@ -179,7 +179,7 @@ function RiderOrderCard({
       const res = await fetch(`/api/rider/deliver`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order_id: o.id, otp, payment_mode: "cash" }),
+        body: JSON.stringify({ order_id: o.id, otp, verify_only: true }),
         credentials: 'include',
       });
       if (res.ok) {
