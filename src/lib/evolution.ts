@@ -1,4 +1,5 @@
 // Server-only Evolution Go API client
+
 const EVOLUTION_BASE_URL = process.env.EVOLUTION_API_URL!;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY!;
 
@@ -6,140 +7,296 @@ interface EvolutionInstance {
   id: string;
   name: string;
   token: string;
-  webhook: string;
+  webhook?: string;
   connected: boolean;
   qrcode?: string;
+  jid?: string;
 }
 
-interface EvolutionResponse<T> {
-  data?: T;
-  message?: string;
-  qrcode?: { base64: string; code: string };
-}
-
-async function evolutionFetch<T>(path: string, options: RequestInit = {}, useInstanceToken = false): Promise<T> {
+/**
+ * Generic request helper
+ */
+async function evolutionFetch<T>(
+  path: string,
+  options: RequestInit = {},
+  apiKey: string = EVOLUTION_API_KEY,
+): Promise<T> {
   const url = `${EVOLUTION_BASE_URL}${path}`;
-  const token = useInstanceToken ? EVOLUTION_API_KEY : EVOLUTION_API_KEY;
-  const res = await fetch(url, {
+
+  const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
-      apikey: token,
-      ...options.headers,
+      "Content-Type": "application/json",
+      apikey: apiKey,
+      ...(options.headers || {}),
     },
     signal: AbortSignal.timeout(15000),
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || err.message || `Evolution API error: ${res.status}`);
-  }
-  return res.json();
-}
+  const responseText = await response.text();
 
-// Create or get instance for a user
-export async function getOrCreateInstance(instanceName: string): Promise<EvolutionInstance> {
-  // First try to find existing instance by name via /instance/all
+  let data: any = {};
+
   try {
-    const all = await evolutionFetch<{ data: EvolutionInstance[] }>(`/instance/all`, {}, true);
-    const existing = all.data.find((i) => i.name === instanceName);
-    if (existing) return existing;
+    data = responseText ? JSON.parse(responseText) : {};
   } catch {
-    // Continue to create if list fails
+    data = {};
   }
 
-  // Try to create new instance
-  try {
-    const created = await evolutionFetch<{ data: EvolutionInstance }>(`/instance/create`, {
-      method: 'POST',
-      body: JSON.stringify({ 
-        name: instanceName, 
-        token: EVOLUTION_API_KEY,
-        integration: 'WHATSAPP-BAILEYS' 
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+        data.message ||
+        `Evolution Go API error: ${response.status}`,
+    );
+  }
+
+  return data as T;
+}
+
+/**
+ * Get all Evolution Go instances
+ */
+async function getAllInstances(): Promise<EvolutionInstance[]> {
+  const response = await evolutionFetch<{
+    data: EvolutionInstance[];
+    message?: string;
+  }>("/instance/all");
+
+  return response.data || [];
+}
+
+/**
+ * Get existing instance or create a new one
+ */
+export async function getOrCreateInstance(
+  instanceName: string,
+): Promise<EvolutionInstance> {
+  const instances = await getAllInstances();
+
+  const existing = instances.find((instance) => instance.name === instanceName);
+
+  if (existing) {
+    return existing;
+  }
+
+  const instanceToken = crypto.randomUUID();
+
+  const response = await evolutionFetch<{
+    data: EvolutionInstance;
+    message?: string;
+  }>("/instance/create", {
+    method: "POST",
+    body: JSON.stringify({
+      name: instanceName,
+      token: instanceToken,
+    }),
+  });
+
+  return response.data;
+}
+
+/**
+ * Get instance token
+ */
+async function getInstanceToken(instanceName: string): Promise<string> {
+  const instances = await getAllInstances();
+
+  const instance = instances.find((item) => item.name === instanceName);
+
+  if (!instance) {
+    throw new Error(`Evolution Go instance "${instanceName}" not found`);
+  }
+
+  if (!instance.token) {
+    throw new Error(`Evolution Go instance "${instanceName}" has no token`);
+  }
+
+  return instance.token;
+}
+
+/**
+ * Connect instance
+ */
+export async function connectInstance(instanceName: string): Promise<void> {
+  const instanceToken = await getInstanceToken(instanceName);
+
+  const webhookUrl = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/evolution`
+    : undefined;
+
+  const body: Record<string, unknown> = {};
+
+  if (webhookUrl) {
+    body.webhookUrl = webhookUrl;
+    body.subscribe = ["messages.upsert", "connection.update"];
+  }
+
+  await evolutionFetch(
+    "/instance/connect",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+    instanceToken,
+  );
+}
+
+/**
+ * Get QR code
+ */
+export async function getInstanceQrCode(
+  instanceName: string,
+): Promise<{ base64: string; code: string }> {
+  const instanceToken = await getInstanceToken(instanceName);
+
+  const response = await evolutionFetch<{
+    data: {
+      qrcode: string;
+      code: string;
+    };
+  }>("/instance/qr", {}, instanceToken);
+
+  const qrcode = response.data?.qrcode || "";
+  const code = response.data?.code || "";
+
+  let base64 = qrcode;
+
+  if (base64.startsWith("data:image")) {
+    base64 = base64.replace(/^data:image\/png;base64,/, "");
+  }
+
+  if (!base64 && code.startsWith("data:image")) {
+    base64 = code.replace(/^data:image\/png;base64,/, "");
+  }
+
+  return {
+    base64,
+    code,
+  };
+}
+
+/**
+ * Get instance connection status
+ */
+export async function getInstanceStatus(
+  instanceName: string,
+): Promise<{ state: string }> {
+  const instanceToken = await getInstanceToken(instanceName);
+
+  const response = await evolutionFetch<{
+    data: {
+      connected: boolean;
+      loggedIn: boolean;
+    };
+  }>("/instance/status", {}, instanceToken);
+
+  const data = response.data;
+
+  if (data.connected && data.loggedIn) {
+    return { state: "open" };
+  }
+
+  if (data.connected) {
+    return { state: "connecting" };
+  }
+
+  return { state: "close" };
+}
+
+/**
+ * Send WhatsApp text message
+ */
+export async function sendTextMessage(
+  instanceName: string,
+  number: string,
+  text: string,
+): Promise<void> {
+  const instanceToken = await getInstanceToken(instanceName);
+
+  const cleanNumber = number.replace(/\D/g, "");
+
+  await evolutionFetch(
+    "/send/text",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        number: cleanNumber,
+        text,
       }),
-    }, true);
-    return created.data;
-  } catch (createErr) {
-    // If instance already exists, fetch from list
-    if ((createErr as Error).message.includes('already exists')) {
-      const all = await evolutionFetch<{ data: EvolutionInstance[] }>(`/instance/all`, {}, true);
-      const existing = all.data.find((i) => i.name === instanceName);
-      if (existing) return existing;
-    }
-    throw createErr;
-  }
+    },
+    instanceToken,
+  );
 }
 
-// Get QR code for pairing (uses instance token auth)
-export async function getInstanceQrCode(instanceName: string): Promise<{ base64: string; code: string }> {
-  // First connect to get QR with webhook
-  await evolutionFetch(`/instance/connect`, {
-    method: 'POST',
-    body: JSON.stringify({
-      webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/evolution`,
-      subscribe: ['messages', 'connection.update'],
-    }),
-  }, true);
-  
-  // Then get QR code
-  const res = await evolutionFetch<{ data: { qrcode: string; code: string } }>(`/instance/qr`, {}, true);
-  // Extract base64 from data URL
-  const base64 = res.data.qrcode.replace(/^data:image\/png;base64,/, '');
-  return { base64, code: res.data.code };
-}
-
-// Get instance connection status (uses instance token auth)
-export async function getInstanceStatus(instanceName: string): Promise<{ state: string }> {
-  const res = await evolutionFetch<{ data: { Connected: boolean; LoggedIn: boolean } }>(`/instance/status`, {}, true);
-  const state = res.data.Connected ? 'open' : res.data.LoggedIn ? 'connecting' : 'close';
-  return { state };
-}
-
-// Send text message (for OTP) - uses instance token auth
-export async function sendTextMessage(instanceName: string, number: string, text: string): Promise<void> {
-  const cleanNumber = number.replace(/\D/g, '');
-  await evolutionFetch(`/send/text`, {
-    method: 'POST',
-    body: JSON.stringify({
-      number: cleanNumber,
-      text,
-    }),
-  }, true);
-}
-
-// Send button message (for OTP with copy button) - uses instance token auth
+/**
+ * Send button message
+ */
 export async function sendButtonMessage(
   instanceName: string,
   number: string,
   bodyText: string,
   buttonText: string,
-  buttonId: string
+  buttonId: string,
 ): Promise<void> {
-  const cleanNumber = number.replace(/\D/g, '');
-  await evolutionFetch(`/send/button`, {
-    method: 'POST',
-    body: JSON.stringify({
-      number: cleanNumber,
-      body: bodyText,
-      buttons: [
-        {
-          type: "reply",
-          reply: {
-            id: buttonId,
-            title: buttonText,
+  const instanceToken = await getInstanceToken(instanceName);
+
+  const cleanNumber = number.replace(/\D/g, "");
+
+  await evolutionFetch(
+    "/send/button",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        number: cleanNumber,
+        body: bodyText,
+        buttons: [
+          {
+            type: "reply",
+            reply: {
+              id: buttonId,
+              title: buttonText,
+            },
           },
-        },
-      ],
-    }),
-  }, true);
+        ],
+      }),
+    },
+    instanceToken,
+  );
 }
 
-// Delete instance (cleanup) - uses admin token
+/**
+ * Delete instance
+ */
 export async function deleteInstance(instanceName: string): Promise<void> {
-  await evolutionFetch(`/instance/delete/${instanceName}`, { method: 'DELETE' }, true);
+  const instances = await getAllInstances();
+
+  const instance = instances.find((item) => item.name === instanceName);
+
+  if (!instance) {
+    return;
+  }
+
+  await evolutionFetch(
+    `/instance/delete/${instance.id}`,
+    {
+      method: "DELETE",
+    },
+    EVOLUTION_API_KEY,
+  );
 }
 
-// Logout instance - uses instance token auth
+/**
+ * Logout instance
+ */
 export async function logoutInstance(instanceName: string): Promise<void> {
-  await evolutionFetch(`/instance/logout`, { method: 'DELETE' }, true);
+  const instanceToken = await getInstanceToken(instanceName);
+
+  await evolutionFetch(
+    "/instance/logout",
+    {
+      method: "DELETE",
+    },
+    instanceToken,
+  );
 }
