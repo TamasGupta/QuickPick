@@ -27,7 +27,7 @@ export const GET = withApiLogging("/api/rider/upi-qr", async (req: Request) => {
   // Verify order belongs to rider (orderId is the Razorpay order ID)
   const { data: order } = await service
     .from("orders")
-    .select("id, razorpay_delivery_order_id, rider_id")
+    .select("id, razorpay_delivery_order_id, rider_id, total")
     .eq("razorpay_delivery_order_id", orderId)
     .single();
 
@@ -53,14 +53,20 @@ export const GET = withApiLogging("/api/rider/upi-qr", async (req: Request) => {
         description: "COD delivery payment",
         close_by: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiry
         notes: {
-          order_id: orderId,
+          order_id: order.id,
           type: "delivery_payment",
+          razorpay_order_id: orderId,
         },
       }, (err: any, data: any) => {
         if (err) reject(err);
         else resolve(data);
       });
     });
+
+    await service
+      .from("orders")
+      .update({ delivery_qr_id: qr.id })
+      .eq("id", order.id);
 
     return NextResponse.json({
       qr_url: qr.image_url,

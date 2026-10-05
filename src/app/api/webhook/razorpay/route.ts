@@ -71,11 +71,19 @@ export const POST = withApiLogging("/api/webhook/razorpay", async (req: Request)
       // Verify this is a valid delivery payment
       const { data: order } = await service
         .from("orders")
-        .select("id, razorpay_delivery_order_id, total, subtotal, delivery_fee, other_charges, payment_status")
+        .select("id, razorpay_delivery_order_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, payment_status")
         .eq("id", orderId)
         .single();
 
-      if (order && order.razorpay_delivery_order_id === payment.order_id) {
+      // Order matches if payment came from its Razorpay order OR its QR code,
+      // or notes carry the same razorpay order id (QR payments have null order_id).
+      const notesRzpOrderId = payment.notes?.razorpay_order_id;
+      const matchesOrder =
+        order &&
+        (order.razorpay_delivery_order_id === payment.order_id ||
+          (notesRzpOrderId && order.razorpay_delivery_order_id === notesRzpOrderId));
+
+      if (matchesOrder) {
         // Mark delivery payment as paid
         await service
           .from("orders")
