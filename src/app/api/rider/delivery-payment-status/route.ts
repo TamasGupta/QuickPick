@@ -20,12 +20,47 @@ export const GET = withApiLogging("/api/rider/delivery-payment-status", async (r
 
   const { data: order, error } = await service
     .from("orders")
-    .select("id, rider_id, payment_mode, delivery_payment_status, razorpay_delivery_order_id, razorpay_delivery_payment_id, total, subtotal, delivery_fee, other_charges, rider_remittance_due, rider_remittance_status, razorpay_remittance_order_id")
+    .select("id, rider_id, payment_mode, delivery_payment_status, razorpay_delivery_order_id, razorpay_delivery_payment_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, rider_remittance_due, rider_remittance_status, razorpay_remittance_order_id")
     .eq("id", orderId)
     .single();
 
   if (error || !order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (order.rider_id !== user.id) return NextResponse.json({ error: "Not your order" }, { status: 403 });
+
+  // Fallback: if webhook hasn't confirmed yet, check Razorpay directly.
+  if (order.delivery_payment_status !== "paid") {
+    try {
+      const { getRazorpay } = await import("@/lib/razorpay");
+      const rzp = getRazorpay();
+      let captured: any = null;
+      if (order.delivery_qr_id) {
+        const res: any = await new Promise((resolve, reject) => {
+          (rzp as any).qrCode.fetchAllPayments(order.delivery_qr_id, {}, (err: any, data: any) =>
+            err ? reject(err) : resolve(data)
+          );
+        });
+        captured = res?.items?.find((p: any) => p.status === "captured");
+      }
+      if (!captured && order.razorpay_delivery_order_id) {
+        const res: any = await (rzp as any).orders.fetchPayments(order.razorpay_delivery_order_id);
+        captured = res?.items?.find((p: any) => p.status === "captured");
+      }
+      if (captured) {
+        await service
+          .from("orders")
+          .update({
+            delivery_payment_status: "paid",
+            razorpay_delivery_payment_id: captured.id,
+            payment_status: "paid",
+          })
+          .eq("id", order.id);
+        order.delivery_payment_status = "paid";
+        order.razorpay_delivery_payment_id = captured.id;
+      }
+    } catch (e) {
+      console.error("[delivery-payment-status] Razorpay fallback check failed:", e);
+    }
+  }
 
   return NextResponse.json({
     payment_mode: order.payment_mode,
