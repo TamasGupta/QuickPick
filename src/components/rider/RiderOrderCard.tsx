@@ -75,11 +75,11 @@ function RiderOrderCard({
 
   // Check if payment was already captured (e.g., from previous QR attempt)
   useEffect(() => {
-    if (deliveryStep === "upi_qr" && upiData && o.delivery_payment_status === "paid") {
-      // Payment already captured - complete delivery
-      completeDelivery("upi");
-    }
-  }, [deliveryStep, upiData, o.delivery_payment_status]);
+    if (o.delivery_payment_status !== "paid") return;
+    if (deliveryStep !== "upi_qr" && deliveryStep !== "payment_mode") return;
+    if (!otp || otp.length !== 4) return;
+    completeDelivery(paymentMode ?? "upi");
+  }, [deliveryStep, o.delivery_payment_status, otp, paymentMode]);
 
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
 
@@ -118,9 +118,12 @@ function RiderOrderCard({
     }
   };
 
-  // Supabase Realtime subscription for payment status updates
+  // Supabase Realtime subscription for payment status updates.
+  // Starts as soon as OTP is verified and rider is on the payment step,
+  // so a captured payment auto-completes the delivery via realtime.
   useEffect(() => {
-    if (deliveryStep !== "upi_qr" || !upiData) return;
+    if (deliveryStep !== "upi_qr" && deliveryStep !== "payment_mode") return;
+    if (!otp || otp.length !== 4) return;
 
     const supabase = createClient();
     const channel = supabase
@@ -136,15 +139,7 @@ function RiderOrderCard({
         (payload) => {
           const newStatus = payload.new?.delivery_payment_status;
           if (newStatus === "paid") {
-            if (otp && otp.length === 4) {
-              completeDelivery("upi");
-            } else {
-              console.error("[realtime] OTP not available for delivery completion");
-              notify.error("Session expired, please re-enter OTP");
-              setDeliveryStep("otp");
-              setUpiData(null);
-              setQrCodeUrl(null);
-            }
+            completeDelivery(paymentMode ?? "upi");
           } else if (newStatus === "failed") {
             notify.error("Payment failed");
             setDeliveryStep("payment_mode");
@@ -158,7 +153,7 @@ function RiderOrderCard({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [deliveryStep, upiData, o.id]);
+  }, [deliveryStep, otp, o.id, paymentMode]);
 
   const completeDelivery = async (mode: "cash" | "upi") => {
     const result = await act("deliver", o.id, otp, mode);
