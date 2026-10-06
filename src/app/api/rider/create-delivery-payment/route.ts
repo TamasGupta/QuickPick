@@ -47,28 +47,39 @@ export const POST = withApiLogging("/api/rider/create-delivery-payment", async (
       // Reuse existing order
       console.log("[create-delivery-payment] Reusing existing Razorpay order:", order.razorpay_delivery_order_id);
       const rzp = getRazorpay();
-      const rzpOrder = await rzp.orders.fetch(order.razorpay_delivery_order_id);
-      return NextResponse.json({
-        razorpay_order_id: rzpOrder.id,
-        amount: rzpOrder.amount,
-        currency: rzpOrder.currency,
-        key_id: process.env.RAZORPAY_KEY_ID,
-      });
+      try {
+        const rzpOrder = await rzp.orders.fetch(order.razorpay_delivery_order_id);
+        return NextResponse.json({
+          razorpay_order_id: rzpOrder.id,
+          amount: rzpOrder.amount,
+          currency: rzpOrder.currency,
+          key_id: process.env.RAZORPAY_KEY_ID,
+        });
+      } catch (err: any) {
+        console.error("[create-delivery-payment] Failed to fetch existing Razorpay order:", JSON.stringify(err?.error ?? err));
+        return NextResponse.json({ error: err?.error?.description ?? "Failed to fetch Razorpay order" }, { status: 500 });
+      }
     }
 
     console.log("[create-delivery-payment] Creating new Razorpay order for amount:", order.total);
     const rzp = getRazorpay();
     const amountPaise = Math.round(order.total * 100);
-    const rzpOrder = await rzp.orders.create({
-      amount: amountPaise,
-      currency: "INR",
-      receipt: `delivery_${order_id.slice(0, 8)}`,
-      notes: {
-        order_id,
-        type: "delivery_payment",
-        payment_mode: "upi",
-      },
-    });
+    let rzpOrder;
+    try {
+      rzpOrder = await rzp.orders.create({
+        amount: amountPaise,
+        currency: "INR",
+        receipt: `delivery_${order_id.slice(0, 8)}`,
+        notes: {
+          order_id,
+          type: "delivery_payment",
+          payment_mode: "upi",
+        },
+      });
+    } catch (err: any) {
+      console.error("[create-delivery-payment] Failed to create Razorpay order:", JSON.stringify(err?.error ?? err));
+      return NextResponse.json({ error: err?.error?.description ?? "Failed to create Razorpay order" }, { status: 500 });
+    }
     console.log("[create-delivery-payment] Razorpay order created:", rzpOrder.id);
 
     await service
