@@ -137,6 +137,7 @@ function RiderOrderCard({
           filter: `id=eq.${o.id}`,
         },
         (payload) => {
+          console.log("[realtime] orders update:", payload.new?.delivery_payment_status);
           const newStatus = payload.new?.delivery_payment_status;
           if (newStatus === "paid") {
             completeDelivery(paymentMode ?? "upi");
@@ -148,7 +149,9 @@ function RiderOrderCard({
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[realtime] subscription status:", status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
