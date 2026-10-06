@@ -84,7 +84,7 @@ export function withApiLogging<C = unknown>(
         throw err;
       }
 
-      const error = err instanceof Error ? err : new Error(String(err));
+      const error = err instanceof Error ? err : new Error(JSON.stringify(err));
       console.error(
         `[api] ${req.method} ${routeName} -> unhandled exception (${Date.now() - start}ms)`,
         error.message,
