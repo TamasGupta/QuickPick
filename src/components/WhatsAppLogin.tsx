@@ -253,7 +253,10 @@ export function WhatsAppLogin({
       {step === "otp" && (
         <>
           <button
-            onClick={() => { setStep("phone"); setVerifiedUserId(null); }}
+            onClick={() => {
+              setStep("phone");
+              setVerifiedUserId(null);
+            }}
             className="mb-2 flex items-center gap-1 text-sm text-ink-faint hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" /> Change number
