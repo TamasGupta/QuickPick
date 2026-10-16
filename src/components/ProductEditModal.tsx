@@ -31,6 +31,7 @@ export function ProductEditModal({
     sku: product.sku ?? "",
     stock: String(product.stock),
     is_active: product.is_active,
+    max_order_qty: product.max_order_qty != null ? String(product.max_order_qty) : "",
   });
   const [imageUrl, setImageUrl] = useState(product.image_url);
   const [uploading, setUploading] = useState(false);
@@ -79,6 +80,14 @@ export function ProductEditModal({
       notify.error("Product name is required.");
       return;
     }
+    const maxOrderQtyVal =
+      form.max_order_qty.trim() === "" ? null : Number(form.max_order_qty);
+
+    if (maxOrderQtyVal !== null && (isNaN(maxOrderQtyVal) || maxOrderQtyVal <= 0)) {
+      notify.error("Max quantity per order must be a positive number.");
+      return;
+    }
+
     setSaving(true);
     const payload = {
       name: form.name.trim(),
@@ -97,14 +106,47 @@ export function ProductEditModal({
       // refresh job (see lib/productImage.ts).
       image_source: imageUrl !== product.image_url ? "seller" : product.image_source,
     };
-    const { data, error } = await supabase.from("products").update(payload).eq("id", product.id).select().single();
+
+    // Try updating with max_order_qty, fallback without it if column not yet in DB
+    let result = await supabase
+      .from("products")
+      .update({ ...payload, max_order_qty: maxOrderQtyVal })
+      .eq("id", product.id)
+      .select()
+      .single();
+
+    if (result.error && result.error.message.includes("max_order_qty")) {
+      result = await supabase
+        .from("products")
+        .update(payload)
+        .eq("id", product.id)
+        .select()
+        .single();
+    }
+
+    // Sync product_restrictions table
+    try {
+      if (maxOrderQtyVal && maxOrderQtyVal > 0) {
+        await supabase
+          .from("product_restrictions")
+          .upsert({ product_id: product.id, max_qty: maxOrderQtyVal, updated_at: new Date().toISOString() });
+      } else {
+        await supabase
+          .from("product_restrictions")
+          .delete()
+          .eq("product_id", product.id);
+      }
+    } catch {
+      // ignore
+    }
+
     setSaving(false);
-    if (error) {
-      notify.error(error.message);
+    if (result.error) {
+      notify.error(result.error.message);
       return;
     }
     notify.success("Product updated");
-    onSaved(data as Product);
+    onSaved({ ...(result.data as Product), max_order_qty: maxOrderQtyVal });
     onClose();
   }
 
@@ -250,6 +292,23 @@ export function ProductEditModal({
                 onChange={(e) => setForm({ ...form, stock: e.target.value })}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-ink-soft">
+              Max Qty per Order <span className="text-ink-faint font-normal">(Cart restriction, optional)</span>
+            </label>
+            <input
+              className="input"
+              type="number"
+              min="1"
+              placeholder="e.g. 2 or 5 (Leave blank for no limit)"
+              value={form.max_order_qty}
+              onChange={(e) => setForm({ ...form, max_order_qty: e.target.value })}
+            />
+            <p className="mt-1 text-[11px] text-ink-faint">
+              Limits how many units of this product a buyer can add to their cart in a single order.
+            </p>
           </div>
 
           <div className="pt-1">

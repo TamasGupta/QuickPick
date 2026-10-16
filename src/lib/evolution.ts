@@ -1,27 +1,22 @@
 export function getEvolutionConfig() {
-  let baseUrl = process.env.EVOLUTION_API_URL || "http://8.234.108.104:4000";
-  let apiKey = process.env.EVOLUTION_API_KEY || "3d31059effd254f3f65c11005dd2b227dffb8f8d08c4c526e7c28c475e06c3cd";
-  let instanceName = process.env.EVOLUTION_OTP_INSTANCE_NAME || "grabonn";
+  const baseUrl = process.env.EVOLUTION_API_URL;
+  const apiKey = process.env.EVOLUTION_API_KEY;
+  const instanceName = process.env.EVOLUTION_OTP_INSTANCE_NAME;
 
-  // Sanitize if the shell has lingering dead Railway deployment URL
-  if (baseUrl.includes("railway.app") || baseUrl.includes("loyal-cat")) {
-    baseUrl = "http://8.234.108.104:4000";
-    apiKey = "3d31059effd254f3f65c11005dd2b227dffb8f8d08c4c526e7c28c475e06c3cd";
-    instanceName = "grabonn";
-  }
-
-  if (instanceName === "otp-sender" || !instanceName) {
-    instanceName = "grabonn";
+  if (!baseUrl || !apiKey || !instanceName) {
+    throw new Error(
+      "Missing Evolution API configuration (EVOLUTION_API_URL, EVOLUTION_API_KEY, or EVOLUTION_OTP_INSTANCE_NAME). Please check your environment variables."
+    );
   }
 
   return { baseUrl, apiKey, instanceName };
 }
 
 function resolveInstanceName(instanceName?: string): string {
-  if (!instanceName || instanceName === "otp-sender") {
-    return getEvolutionConfig().instanceName;
+  if (instanceName && instanceName !== "otp-sender") {
+    return instanceName;
   }
-  return instanceName;
+  return getEvolutionConfig().instanceName;
 }
 
 interface EvolutionInstance {

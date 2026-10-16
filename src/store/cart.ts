@@ -13,15 +13,23 @@ export interface CartItem {
   unit: string | null;
   qty: number;
   stock: number;
+  max_order_qty?: number | null;
 }
+
+export type AddToCartResult =
+  | { ok: true }
+  | { ok: false; reason: "cart_limit" | "item_limit" | "out_of_stock"; limit?: number };
 
 interface CartState {
   items: CartItem[];
-  // Returns false (and doesn't add) when the item is new and the cart is
-  // already at MAX_CART_ITEMS distinct products.
-  add: (item: Omit<CartItem, "qty">, qty?: number) => boolean;
+  // Returns true (or AddToCartResult) on success, or false if blocked by limits
+  add: (
+    item: Omit<CartItem, "qty">,
+    qty?: number,
+    options?: { maxLimit?: number; maxCartItems?: number }
+  ) => boolean;
   remove: (id: string) => void;
-  setQty: (id: string, qty: number) => void;
+  setQty: (id: string, qty: number, maxLimit?: number) => void;
   clear: () => void;
   count: () => number;
   subtotal: () => number;
@@ -34,35 +42,50 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
-      add: (item, qty = 1) => {
+      add: (item, qty = 1, options) => {
         const state = get();
         const existing = state.items.find((i) => i.id === item.id);
-        if (!existing && state.items.length >= MAX_CART_ITEMS) return false;
-        set(() => {
-          if (existing) {
-            return {
-              items: state.items.map((i) =>
-                i.id === item.id
-                  ? { ...i, qty: Math.min(i.qty + qty, i.stock) }
-                  : i
-              ),
-            };
-          }
-          return { items: [...state.items, { ...item, qty: Math.min(qty, item.stock) }] };
+        const maxCartDistinct = options?.maxCartItems ?? MAX_CART_ITEMS;
+
+        if (!existing && state.items.length >= maxCartDistinct) return false;
+
+        const effectiveMax = options?.maxLimit ?? item.max_order_qty ?? item.stock;
+        const allowedMax = Math.min(item.stock, effectiveMax > 0 ? effectiveMax : item.stock);
+
+        if (existing) {
+          if (existing.qty >= allowedMax) return false;
+          const nextQty = Math.min(existing.qty + qty, allowedMax);
+          set({
+            items: state.items.map((i) =>
+              i.id === item.id ? { ...i, ...item, qty: nextQty } : i
+            ),
+          });
+          return true;
+        }
+
+        if (allowedMax <= 0) return false;
+        const initialQty = Math.min(qty, allowedMax);
+        set({
+          items: [...state.items, { ...item, qty: initialQty }],
         });
         return true;
       },
       remove: (id) =>
         set((state) => ({ items: state.items.filter((i) => i.id !== id) })),
-      setQty: (id, qty) =>
-        set((state) => ({
-          items:
-            qty <= 0
-              ? state.items.filter((i) => i.id !== id)
-              : state.items.map((i) =>
-                  i.id === id ? { ...i, qty: Math.min(qty, i.stock) } : i
-                ),
-        })),
+      setQty: (id, qty, maxLimit) =>
+        set((state) => {
+          if (qty <= 0) {
+            return { items: state.items.filter((i) => i.id !== id) };
+          }
+          return {
+            items: state.items.map((i) => {
+              if (i.id !== id) return i;
+              const limit = maxLimit ?? i.max_order_qty ?? i.stock;
+              const allowedMax = Math.min(i.stock, limit > 0 ? limit : i.stock);
+              return { ...i, qty: Math.min(qty, allowedMax) };
+            }),
+          };
+        }),
       clear: () => set({ items: [] }),
       count: () => get().items.reduce((n, i) => n + i.qty, 0),
       subtotal: () => get().items.reduce((s, i) => s + i.price * i.qty, 0),

@@ -36,6 +36,7 @@ export interface Product {
   image_source: "seller" | "auto" | null;
   brand: string | null;
   is_active: boolean;
+  max_order_qty?: number | null;
 }
 
 export interface Seller {
@@ -157,3 +158,31 @@ export const ORDER_STATUS_FLOW: OrderStatus[] = [
   "out_for_delivery",
   "delivered",
 ];
+
+export interface AppSettings {
+  id: string;
+  delivery_fee: number;
+  other_charges: number;
+  min_order_amount: number;
+  max_cart_items: number;
+  max_qty_per_product: number;
+  updated_at?: string;
+}
+
+export interface ProductRestriction {
+  product_id: string;
+  max_qty: number;
+  created_at?: string;
+  updated_at?: string;
+  products?: {
+    id: string;
+    name: string;
+    price: number;
+    stock: number;
+    image_url: string | null;
+    unit: string | null;
+    brand: string | null;
+    sellers?: { store_name: string } | null;
+  } | null;
+}
+

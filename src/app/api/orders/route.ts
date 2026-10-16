@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
-import { DELIVERY_FEE, OTHER_CHARGES, MAX_CART_ITEMS } from "@/lib/utils";
 import { withApiLogging } from "@/lib/apiLogger";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { sendPushToUser } from "@/lib/push";
+import { getAppSettings, getProductRestrictionsMap } from "@/lib/settings";
 
 interface IncomingItem {
   product_id: string;
@@ -46,11 +46,19 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   if (!seller_id || !items?.length) {
     return NextResponse.json({ error: "Invalid order payload" }, { status: 400 });
   }
-  if (items.length > MAX_CART_ITEMS) {
-    return NextResponse.json({ error: `Orders are limited to ${MAX_CART_ITEMS} products at a time.` }, { status: 400 });
-  }
 
   const service = createServiceSupabase();
+  const [settings, restrictionsMap] = await Promise.all([
+    getAppSettings(service),
+    getProductRestrictionsMap(service),
+  ]);
+
+  if (items.length > settings.max_cart_items) {
+    return NextResponse.json(
+      { error: `Orders are limited to ${settings.max_cart_items} products at a time.` },
+      { status: 400 }
+    );
+  }
 
   // Enforce the delivery radius. Never trust a client-computed distance —
   // re-fetch both points and recompute server-side.
@@ -100,13 +108,24 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
     );
   }
 
-  // Re-price against the DB to prevent tampering.
+  // Re-price against the DB to prevent tampering and enforce purchase restrictions.
   const ids = items.map((i) => i.product_id);
-  const { data: products, error: pErr } = await service
+  let products: any[] | null = null;
+  const { data: prodsWithLimit, error: pErrWithLimit } = await service
     .from("products")
-    .select("id, price, name, stock, seller_id, is_active")
+    .select("id, price, name, stock, seller_id, is_active, max_order_qty")
     .in("id", ids);
-  if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
+
+  if (!pErrWithLimit && prodsWithLimit) {
+    products = prodsWithLimit;
+  } else {
+    const { data: prodsBasic, error: pErrBasic } = await service
+      .from("products")
+      .select("id, price, name, stock, seller_id, is_active")
+      .in("id", ids);
+    if (pErrBasic) return NextResponse.json({ error: pErrBasic.message }, { status: 500 });
+    products = prodsBasic;
+  }
 
   const priceMap = new Map(products?.map((p) => [p.id, p]));
   let subtotal = 0;
@@ -122,11 +141,36 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
     if (p.stock < it.qty) {
       return NextResponse.json({ error: `Out of stock: ${p.name}` }, { status: 409 });
     }
+
+    // Check purchase restrictions for this specific product or default product limit
+    const customLimit = restrictionsMap.get(it.product_id) ?? (p as any).max_order_qty;
+    const itemMaxAllowed = customLimit && customLimit > 0 ? customLimit : settings.max_qty_per_product;
+    if (it.qty > itemMaxAllowed) {
+      return NextResponse.json(
+        {
+          error: `You can only order up to ${itemMaxAllowed} unit${itemMaxAllowed > 1 ? "s" : ""} of ${p.name}. Please adjust your cart quantity.`,
+        },
+        { status: 400 }
+      );
+    }
+
     subtotal += Number(p.price) * it.qty;
     validated.push({ product_id: p.id, name: p.name, price: Number(p.price), qty: it.qty });
   }
 
-  const total = subtotal + DELIVERY_FEE + OTHER_CHARGES;
+  // Validate minimum order amount
+  if (subtotal < settings.min_order_amount) {
+    return NextResponse.json(
+      {
+        error: `Order subtotal must be at least ₹${settings.min_order_amount} to place an order.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  const delivery_fee = settings.delivery_fee;
+  const other_charges = settings.other_charges;
+  const total = subtotal + delivery_fee + other_charges;
 
   // 4-digit delivery OTP the buyer shares with the rider at handover.
   const delivery_otp = String(Math.floor(1000 + Math.random() * 9000));
@@ -140,8 +184,8 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
       address_id,
       delivery_slot,
       subtotal,
-      delivery_fee: DELIVERY_FEE,
-      other_charges: OTHER_CHARGES,
+      delivery_fee,
+      other_charges,
       total,
       status: "placed",
       payment_status: payment_method === "cod" ? "cod" : "pending",

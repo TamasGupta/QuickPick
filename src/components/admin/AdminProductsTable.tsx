@@ -62,6 +62,11 @@ export function AdminProductsTable({ products: initial }: { products: Row[] }) {
             <div className="shrink-0 text-right">
               <p className="text-sm font-semibold text-ink">{inr(p.price)}</p>
               <p className="text-xs text-ink-faint">Stock {p.stock}</p>
+              {p.max_order_qty != null && (
+                <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 px-1 rounded">
+                  Max {p.max_order_qty}/cart
+                </span>
+              )}
             </div>
             <span
               className={`badge shrink-0 ${
