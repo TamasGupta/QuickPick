@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { toE164 } from '@/lib/phone';
 import { generateOtp, storeOtp } from '@/lib/otp';
-import { sendTextMessage } from '@/lib/evolution';
+import { sendTextMessage, getEvolutionConfig } from '@/lib/evolution';
 import { authRatelimit } from '@/lib/rateLimit';
 import { withApiLogging } from '@/lib/apiLogger';
 import { createServiceSupabase } from '@/lib/supabase/server';
@@ -12,9 +12,6 @@ const ADDITIONAL_TEST_PHONES = ["+919000000001"];
 function isTestPhone(phone: string): boolean {
   return phone.startsWith(TEST_PHONE_PREFIX) || ADDITIONAL_TEST_PHONES.includes(phone);
 }
-
-// Single pre-connected instance for sending OTPs (admin sets up once, scans QR once)
-const OTP_INSTANCE_NAME = process.env.EVOLUTION_OTP_INSTANCE_NAME || 'otp-sender';
 
 export const POST = withApiLogging(
   '/api/auth/evolution/send-otp',
@@ -68,11 +65,14 @@ export const POST = withApiLogging(
 
     // Use text message only - button messages may fail on some Evolution API versions
     try {
-      await sendTextMessage(OTP_INSTANCE_NAME, phone, bodyText);
+      const { instanceName } = getEvolutionConfig();
+      await sendTextMessage(instanceName, phone, bodyText);
       return NextResponse.json({ ok: true });
     } catch (err) {
       return NextResponse.json(
-        { error: (err as Error).message ?? 'Failed to send OTP' },
+        {
+          error: (err as Error).message ?? 'Failed to send OTP',
+        },
         { status: 502 }
       );
     }
