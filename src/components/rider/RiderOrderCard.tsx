@@ -120,6 +120,19 @@ function RiderOrderCard({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [showQrModal]);
 
+  const cancelUpiToCash = () => {
+    setDeliveryStep("payment_mode");
+    setPaymentMode("cash");
+    setUpiData(null);
+    setQrCodeUrl(null);
+    setShowQrModal(false);
+    fetch("/api/rider/create-delivery-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order_id: o.id, payment_mode: "cash" }),
+    }).catch((err) => console.error("Failed to reset payment mode to cash:", err));
+  };
+
   const fetchUpiQr = async (orderId: string, keyId: string) => {
     try {
       // Use Razorpay's UPI QR endpoint
@@ -137,10 +150,7 @@ function RiderOrderCard({
     } catch (err: any) {
       console.error("Failed to fetch QR:", err);
       notify.error(err.message || "Failed to generate QR code. Please try again or use cash.");
-      // Reset state so rider can retry or switch to cash
-      setDeliveryStep("payment_mode");
-      setUpiData(null);
-      setQrCodeUrl(null);
+      cancelUpiToCash();
     }
   };
 
@@ -171,13 +181,11 @@ function RiderOrderCard({
           if (newDeliveryStatus === "paid" || newPaymentStatus === "paid") {
             setShowQrModal(false);
             notify.success("Payment confirmed! Completing delivery...");
-            completeDelivery(paymentMode ?? "upi");
+            completeDelivery("upi");
           } else if (newDeliveryStatus === "failed") {
             setShowQrModal(false);
             notify.error("Payment failed");
-            setDeliveryStep("payment_mode");
-            setUpiData(null);
-            setQrCodeUrl(null);
+            cancelUpiToCash();
           }
         }
       )
@@ -188,7 +196,7 @@ function RiderOrderCard({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [deliveryStep, otp, o.id, paymentMode]);
+  }, [deliveryStep, otp, o.id]);
 
   const verifyOtp = async () => {
     if (otp.length !== 4) return false;
@@ -225,13 +233,9 @@ function RiderOrderCard({
     }
   };
 
-  // Show payment status badge for history tab
+  // Show payment status badge for all tabs
   const getPaymentStatusBadge = () => {
-    if (!isCod) return null;
     if (tab === "history") {
-      if (o.payment_mode === "upi") {
-        return <span className="badge bg-green-50 text-green-700 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Paid via UPI</span>;
-      }
       if (o.payment_mode === "cash") {
         if (o.rider_remittance_status === "paid") {
           return <span className="badge bg-green-50 text-green-700 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Cash collected, remitted</span>;
@@ -241,6 +245,13 @@ function RiderOrderCard({
         }
         return <span className="badge bg-amber-50 text-amber-700 flex items-center gap-1"><Banknote className="h-3 w-3" /> Cash collected</span>;
       }
+      if (o.payment_mode === "upi") {
+        return <span className="badge bg-green-50 text-green-700 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Paid via UPI</span>;
+      }
+      if (o.payment_status === "cod") {
+        return <span className="badge bg-amber-50 text-amber-700 flex items-center gap-1"><Banknote className="h-3 w-3" /> Cash collected</span>;
+      }
+      return <span className="badge bg-brand-50 text-brand-700 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Prepaid</span>;
     }
     return <span className={`badge ${isCod ? "bg-amber-100 text-amber-700" : "bg-brand-50 text-brand-700"}`}>{isCod ? "Collect COD" : "Prepaid"}</span>;
   };
@@ -307,7 +318,7 @@ function RiderOrderCard({
         </span>
         <span className="text-ink-soft">
           Order {inr(o.total)}
-          {isCod && <span className="font-semibold text-ink"> · collect {inr(o.total)}</span>}
+          {tab !== "history" && isCod && <span className="font-semibold text-ink"> · collect {inr(o.total)}</span>}
         </span>
       </div>
 
@@ -523,7 +534,7 @@ function RiderOrderCard({
               </p>
               <div className="flex justify-center gap-2">
                 <button
-                  onClick={() => { setDeliveryStep("payment_mode"); setUpiData(null); setQrCodeUrl(null); setShowQrModal(false); }}
+                  onClick={cancelUpiToCash}
                   disabled={busy}
                   className="btn-outline text-xs"
                 >
@@ -638,7 +649,7 @@ function RiderOrderCard({
               </button>
               <button
                 type="button"
-                onClick={() => { setDeliveryStep("payment_mode"); setUpiData(null); setQrCodeUrl(null); setShowQrModal(false); }}
+                onClick={cancelUpiToCash}
                 disabled={busy}
                 className="btn-ghost text-xs text-ink-faint hover:text-red-600"
               >
