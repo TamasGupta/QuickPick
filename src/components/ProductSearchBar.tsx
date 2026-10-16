@@ -18,9 +18,10 @@ import {
   Tag,
   CornerDownLeft,
 } from "lucide-react";
-import { inr, MAX_CART_ITEMS } from "@/lib/utils";
+import { inr } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { notify } from "@/store/notify";
+import { useSettings } from "@/store/settings";
 import type { SuggestionProduct, SuggestionCategory } from "@/app/api/products/suggest/route";
 
 const RECENT_SEARCHES_KEY = "quickpick_recent_searches";
@@ -106,6 +107,7 @@ export function ProductSearchBar({
   const cartItems = useCart((s) => s.items);
   const addToCart = useCart((s) => s.add);
   const setQty = useCart((s) => s.setQty);
+  const { settings, getProductLimit } = useSettings();
 
   // Sync state with URL params when page navigates
   useEffect(() => {
@@ -334,25 +336,46 @@ export function ProductSearchBar({
 
   function handleAddToCart(prod: SuggestionProduct, e: React.MouseEvent) {
     e.stopPropagation();
-    const ok = addToCart({
-      id: prod.id,
-      seller_id: prod.seller_id,
-      name: prod.name,
-      price: prod.price,
-      image_url: prod.image_url,
-      unit: prod.unit,
-      stock: prod.stock,
-    });
+    const maxLimit = getProductLimit(prod.id, prod.stock);
+    const existing = cartItems.find((i) => i.id === prod.id);
+
+    if (existing && existing.qty >= maxLimit) {
+      notify.error(`Order limit reached — max ${maxLimit} for this item.`);
+      return;
+    }
+
+    const ok = addToCart(
+      {
+        id: prod.id,
+        seller_id: prod.seller_id,
+        name: prod.name,
+        price: prod.price,
+        image_url: prod.image_url,
+        unit: prod.unit,
+        stock: prod.stock,
+        max_order_qty: maxLimit,
+      },
+      1,
+      { maxLimit, maxCartItems: settings.max_cart_items }
+    );
     if (!ok) {
-      notify.error(`Cart limit reached — max ${MAX_CART_ITEMS} products at a time.`);
+      if (existing && existing.qty >= maxLimit) {
+        notify.error(`Order limit reached — max ${maxLimit} for this item.`);
+      } else {
+        notify.error(`Cart limit reached — max ${settings.max_cart_items} products at a time.`);
+      }
     } else {
       notify.success(`Added ${prod.name} to cart`);
     }
   }
 
-  function handleQtyChange(prodId: string, newQty: number, e: React.MouseEvent) {
+  function handleQtyChange(prodId: string, newQty: number, maxLimit: number, e: React.MouseEvent) {
     e.stopPropagation();
-    setQty(prodId, newQty);
+    if (newQty > maxLimit) {
+      notify.error(`Order limit reached — max ${maxLimit} for this item.`);
+      return;
+    }
+    setQty(prodId, newQty, maxLimit);
   }
 
   const showDropdown = isOpen;
@@ -551,6 +574,7 @@ export function ProductSearchBar({
                     {products.map((prod, idx) => {
                       const isHighlighted = highlightedIndex === idx;
                       const cartItem = cartItems.find((i) => i.id === prod.id);
+                      const maxLimit = getProductLimit(prod.id, prod.stock);
                       const discount =
                         prod.mrp && prod.mrp > prod.price
                           ? Math.round(((prod.mrp - prod.price) / prod.mrp) * 100)
@@ -633,7 +657,7 @@ export function ProductSearchBar({
                               <div className="qty-stepper text-xs">
                                 <button
                                   type="button"
-                                  onClick={(e) => handleQtyChange(prod.id, cartItem.qty - 1, e)}
+                                  onClick={(e) => handleQtyChange(prod.id, cartItem.qty - 1, maxLimit, e)}
                                   className="h-7 w-7 flex items-center justify-center hover:bg-brand-700"
                                   aria-label="Decrease quantity"
                                 >
@@ -644,10 +668,11 @@ export function ProductSearchBar({
                                 </span>
                                 <button
                                   type="button"
-                                  disabled={cartItem.qty >= prod.stock}
-                                  onClick={(e) => handleQtyChange(prod.id, cartItem.qty + 1, e)}
+                                  disabled={cartItem.qty >= maxLimit}
+                                  onClick={(e) => handleQtyChange(prod.id, cartItem.qty + 1, maxLimit, e)}
                                   className="h-7 w-7 flex items-center justify-center hover:bg-brand-700 disabled:opacity-40"
                                   aria-label="Increase quantity"
+                                  title={cartItem.qty >= maxLimit ? `Max ${maxLimit} allowed` : undefined}
                                 >
                                   <Plus className="h-3 w-3" />
                                 </button>

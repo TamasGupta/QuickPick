@@ -7,7 +7,8 @@ import Link from "next/link";
 import { MapPin, TriangleAlert, Pencil, Trash2, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCart } from "@/store/cart";
-import { inr, DELIVERY_FEE, OTHER_CHARGES } from "@/lib/utils";
+import { inr } from "@/lib/utils";
+import { useSettings } from "@/store/settings";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { SkelLine } from "@/components/skeletons";
 import { notify } from "@/store/notify";
@@ -108,8 +109,14 @@ export default function CheckoutPage() {
   // Store hours — fetched once when the cart's seller is known.
   const [storeHours, setStoreHours] = useState<StoreHoursStatus | null>(null);
 
+  const { settings } = useSettings();
+  const deliveryFee = settings.delivery_fee;
+  const otherCharges = settings.other_charges;
+  const minOrder = settings.min_order_amount;
+
   const sub = subtotal();
-  const total = sub + DELIVERY_FEE + OTHER_CHARGES;
+  const belowMin = sub > 0 && sub < minOrder;
+  const total = sub + deliveryFee + otherCharges;
 
   function applyPickedToForm(loc: PickedLocation) {
     setPicked(loc);
@@ -302,6 +309,7 @@ export default function CheckoutPage() {
 
   async function placeOrder() {
     if (!addressId) return notify.error("Please select a delivery address.");
+    if (belowMin) return notify.error(`Order subtotal is below the minimum order of ${inr(minOrder)}.`);
     if (needsPin) return notify.error("Please pin your exact delivery location before placing this order.");
     if (outOfRange) return notify.error("This store doesn't deliver to your address.");
     if (storeClosed) return notify.error("This store is currently closed.");
@@ -524,14 +532,20 @@ export default function CheckoutPage() {
       {/* Summary */}
       <section className="card space-y-2 p-4 text-sm">
         <div className="flex justify-between"><span>Subtotal</span><span>{inr(sub)}</span></div>
-        <div className="flex justify-between"><span>Delivery fee</span><span>{inr(DELIVERY_FEE)}</span></div>
-        <div className="flex justify-between"><span>Other charges</span><span>{inr(OTHER_CHARGES)}</span></div>
+        <div className="flex justify-between"><span>Delivery fee</span><span>{inr(deliveryFee)}</span></div>
+        <div className="flex justify-between"><span>Other charges</span><span>{inr(otherCharges)}</span></div>
         <div className="flex justify-between border-t pt-2 text-base font-bold">
           <span>Total</span><span>{inr(total)}</span>
         </div>
       </section>
 
-      <button className="btn-primary w-full" disabled={placing || needsPin || outOfRange || storeClosed} onClick={placeOrder}>
+      {belowMin && (
+        <p className="rounded-xl bg-accent-50 p-3 text-sm font-medium text-accent-600">
+          Add {inr(minOrder - sub)} more to reach the minimum order of {inr(minOrder)}.
+        </p>
+      )}
+
+      <button className="btn-primary w-full" disabled={placing || needsPin || outOfRange || storeClosed || belowMin} onClick={placeOrder}>
         {placing ? "Placing order…" : `Place order · ${inr(total)}`}
       </button>
     </div>

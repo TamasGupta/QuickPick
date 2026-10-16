@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { withApiLogging } from "@/lib/apiLogger";
-import { MIN_ORDER } from "@/lib/utils";
+import { getAppSettings } from "@/lib/settings";
 
 const now = () => new Date().toISOString();
 
@@ -116,12 +116,15 @@ export const POST = withApiLogging(
       .filter((i) => !i.out_of_stock)
       .reduce((s, i) => s + Number(i.price) * i.qty, 0);
 
-    if (subtotal < MIN_ORDER) {
+    const settings = await getAppSettings(service);
+    const minOrder = settings.min_order_amount;
+
+    if (subtotal < minOrder) {
       return NextResponse.json(
         {
-          error: `Add ${MIN_ORDER - subtotal} more to continue — this order would fall below the ${MIN_ORDER} minimum.`,
+          error: `Add ${minOrder - subtotal} more to continue — this order would fall below the ${minOrder} minimum.`,
           code: "below_minimum",
-          shortBy: Math.round((MIN_ORDER - subtotal) * 100) / 100,
+          shortBy: Math.round((minOrder - subtotal) * 100) / 100,
         },
         { status: 400 }
       );
