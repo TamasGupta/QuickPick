@@ -93,6 +93,10 @@ const config: Config = {
           "60%": { transform: "scale(1.15)" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        "confetti-fall": {
+          "0%": { transform: "translateY(-10px) rotate(0deg)", opacity: "1" },
+          "100%": { transform: "translateY(240px) rotate(420deg)", opacity: "0" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.4s ease-out both",
@@ -101,6 +105,7 @@ const config: Config = {
         "pulse-ring": "pulse-ring 1.8s ease-out infinite",
         wiggle: "wiggle 0.6s ease-in-out",
         "bounce-in": "bounce-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both",
+        "confetti-fall": "confetti-fall 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards",
       },
     },
   },
