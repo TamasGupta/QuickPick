@@ -1,19 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { MapPin, Search, ShoppingCart, ChevronDown, User } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { MapPin, ShoppingCart, ChevronDown, User } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { createClient } from "@/lib/supabase/client";
 import { LogoMark } from "@/components/Logo";
+import { ProductSearchBar } from "@/components/ProductSearchBar";
 import type { Address } from "@/lib/types";
 
 export function Header() {
   const rawCount = useCart((s) => s.count());
-  const router = useRouter();
   const pathname = usePathname();
-  const params = useSearchParams();
   // Seller/admin/rider consoles don't shop — same route check BottomNav uses.
   const inConsole = pathname.startsWith("/seller") || pathname.startsWith("/admin") || pathname.startsWith("/rider");
   const inSellerConsole = pathname.startsWith("/seller");
@@ -28,7 +27,6 @@ export function Header() {
   const onLoginPage = pathname.startsWith("/login");
   const [email, setEmail] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [q, setQ] = useState(params.get("q") ?? "");
   const [mounted, setMounted] = useState(false);
   const [defaultAddress, setDefaultAddress] = useState<Address | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
@@ -115,32 +113,6 @@ export function Header() {
     });
   }, [supabase, loggedIn, inSellerConsole, pathname]);
 
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
-
-  // Clears the search box on a real route change (Cart, Account, a product
-  // page, etc.) — but not while the debounced search below is itself pushing
-  // ?q= onto "/", since that keeps pathname unchanged.
-  useEffect(() => {
-    setQ(params.get("q") ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
-  useEffect(() => {
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      const trimmed = q.trim();
-      if (trimmed === (params.get("q") ?? "")) return;
-      router.push(trimmed ? `/?q=${encodeURIComponent(trimmed)}` : "/");
-    }, 400);
-    return () => clearTimeout(searchDebounceRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
-
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    router.push(q.trim() ? `/?q=${encodeURIComponent(q.trim())}` : "/");
-  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur-md">
@@ -210,15 +182,7 @@ export function Header() {
 
             {/* Search (desktop) — sellers/riders have nothing to search here. */}
             {!hideSearch && (
-              <form onSubmit={submitSearch} className="relative hidden flex-1 sm:block">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder='Search "milk", "bread", "atta"…'
-                  className="input pl-10"
-                />
-              </form>
+              <ProductSearchBar id="desktop-search-input" className="hidden flex-1 sm:block max-w-md lg:max-w-lg" />
             )}
           </>
         )}
@@ -261,15 +225,7 @@ export function Header() {
       {/* Search (mobile) — sellers/riders have nothing to search here. */}
       {!onLoginPage && !hideSearch && (
         <div className="container-app pb-3 sm:hidden">
-          <form onSubmit={submitSearch} className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder='Search "milk", "bread", "atta"…'
-              className="input pl-10"
-            />
-          </form>
+          <ProductSearchBar id="mobile-search-input" className="w-full" />
         </div>
       )}
     </header>
