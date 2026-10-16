@@ -20,15 +20,15 @@ export const GET = withApiLogging("/api/rider/delivery-payment-status", async (r
 
   const { data: order, error } = await service
     .from("orders")
-    .select("id, rider_id, payment_mode, payment_status, delivery_payment_status, razorpay_delivery_order_id, razorpay_delivery_payment_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, rider_remittance_due, rider_remittance_status, razorpay_remittance_order_id")
+    .select("id, rider_id, status, payment_mode, payment_status, delivery_payment_status, razorpay_delivery_order_id, razorpay_delivery_payment_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, rider_remittance_due, rider_remittance_status, razorpay_remittance_order_id")
     .eq("id", orderId)
     .single();
 
   if (error || !order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (order.rider_id !== user.id) return NextResponse.json({ error: "Not your order" }, { status: 403 });
 
-  // Fallback: if webhook hasn't confirmed yet, check Razorpay directly.
-  if (order.delivery_payment_status !== "paid") {
+  // Fallback: if webhook hasn't confirmed yet, check Razorpay directly (only for orders still out for delivery).
+  if (order.status !== "delivered" && order.delivery_payment_status !== "paid") {
     try {
       const { getRazorpay } = await import("@/lib/razorpay");
       const rzp = getRazorpay();

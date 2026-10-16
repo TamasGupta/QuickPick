@@ -83,25 +83,44 @@ export const POST = withApiLogging(
     }
 
     const isCod = order.payment_status === "cod";
-    const paymentMode = body.payment_mode ?? (isCod ? "cash" : "online");
+    let paymentMode: "cash" | "upi" | "online";
+    if (isCod) {
+      if (body.payment_mode === "cash") {
+        paymentMode = "cash";
+      } else if (body.payment_mode === "upi" || order.delivery_payment_status === "paid") {
+        paymentMode = "upi";
+      } else {
+        paymentMode = "cash";
+      }
+    } else {
+      paymentMode = "online";
+    }
 
-    // For UPI payments, require payment to be captured first
-    if (paymentMode === "upi" && order.delivery_payment_status !== "paid") {
+    // For UPI payments on COD orders, require payment to be captured first
+    if (isCod && paymentMode === "upi" && order.delivery_payment_status !== "paid") {
       return NextResponse.json(
         { error: "UPI payment not completed", require_payment: true, razorpay_order_id: order.razorpay_delivery_order_id },
         { status: 402 }
       );
     }
 
-    // Set payment_mode and ensure payment_status is updated to paid for UPI
+    // Set payment_mode and ensure payment_status and remittance fields are updated atomically
     const patch: Record<string, unknown> = {
       status: "delivered",
       updated_at: now(),
-      payment_mode: order.payment_mode || paymentMode,
     };
-    if (paymentMode === "upi" || order.delivery_payment_status === "paid") {
-      patch.payment_status = "paid";
-      patch.delivery_payment_status = "paid";
+    if (isCod) {
+      patch.payment_mode = paymentMode;
+      if (paymentMode === "upi") {
+        patch.payment_status = "paid";
+        patch.delivery_payment_status = "paid";
+        patch.rider_remittance_due = 0;
+        patch.rider_remittance_status = "none";
+      } else {
+        // Cash collected by rider at delivery
+        patch.rider_remittance_due = order.subtotal + order.other_charges;
+        patch.rider_remittance_status = "pending";
+      }
     }
 
     const { error } = await service.from("orders").update(patch).eq("id", orderId);
@@ -175,17 +194,6 @@ export const POST = withApiLogging(
     const { error: ledgerErr } = await service.from("ledger_entries").insert(entries);
     if (ledgerErr) console.error("[rider/deliver] ledger insert failed", ledgerErr.message);
 
-    // If COD cash, set up rider remittance due
-    if (isCod && paymentMode === "cash") {
-      await service
-        .from("orders")
-        .update({
-          rider_remittance_due: order.subtotal + order.other_charges,
-          rider_remittance_status: "pending",
-        })
-        .eq("id", orderId);
-    }
-
     void sendPushToUser(order.buyer_id, {
       title: "Order delivered",
       body: ORDER_STATUS_PUSH_COPY.delivered!,
@@ -193,10 +201,12 @@ export const POST = withApiLogging(
       tag: `order-${orderId}`,
     });
 
+    const remittanceDueAmount = isCod && paymentMode === "cash" ? order.subtotal + order.other_charges : 0;
     return NextResponse.json({
       ok: true,
       payment_mode: paymentMode,
-      remittance_due: isCod && paymentMode === "cash" ? order.subtotal + order.other_charges : 0,
+      remittance_due: remittanceDueAmount,
+      remittanceDue: remittanceDueAmount,
     });
   }
 

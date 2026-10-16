@@ -38,8 +38,36 @@ interface LiveData {
 // change on this order or its items. Still goes through
 // /api/orders/:id/live rather than a direct client query, since the rider's
 // name/phone needs the service-role client (RLS keeps other users' profiles
-// private) — the difference from the old approach is this only runs when
-// something actually changed, not on an 8s timer regardless.
+function DeliveryConfetti() {
+  const pieces = [
+    { left: "8%", color: "bg-emerald-500", delay: "0.1s", duration: "2.2s", size: "w-2.5 h-2.5 rounded-full" },
+    { left: "18%", color: "bg-amber-400", delay: "0.3s", duration: "2.5s", size: "w-2 h-3 rounded-sm" },
+    { left: "28%", color: "bg-rose-500", delay: "0s", duration: "2.1s", size: "w-2.5 h-2.5 rounded-full" },
+    { left: "38%", color: "bg-sky-400", delay: "0.4s", duration: "2.7s", size: "w-3 h-2 rounded-sm" },
+    { left: "50%", color: "bg-brand-500", delay: "0.2s", duration: "2.3s", size: "w-2 h-2.5 rounded-sm" },
+    { left: "62%", color: "bg-emerald-400", delay: "0.5s", duration: "2.6s", size: "w-2.5 h-2.5 rounded-full" },
+    { left: "74%", color: "bg-amber-500", delay: "0.1s", duration: "2.4s", size: "w-2.5 h-2.5 rounded-full" },
+    { left: "84%", color: "bg-purple-500", delay: "0.3s", duration: "2.8s", size: "w-3 h-2 rounded-sm" },
+    { left: "92%", color: "bg-pink-400", delay: "0.2s", duration: "2.2s", size: "w-2 h-2 rounded-full" },
+  ];
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      {pieces.map((p, idx) => (
+        <span
+          key={idx}
+          className={`absolute top-0 -translate-y-full opacity-80 animate-confetti-fall ${p.color} ${p.size}`}
+          style={{
+            left: p.left,
+            animationDelay: p.delay,
+            animationDuration: p.duration,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function OrderStatusLive({
   orderId,
   orderIdShort,
@@ -123,6 +151,22 @@ export function OrderStatusLive({
         <section className="card flex flex-col items-center p-2 text-center">
           <LottieIcon name="delivery-rider" className="h-32 w-32" />
           <p className="-mt-2 text-sm font-bold text-ink">Your order is on the way!</p>
+        </section>
+      )}
+
+      {status === "delivered" && (
+        <section className="card relative overflow-hidden flex flex-col items-center p-6 text-center bg-gradient-to-b from-emerald-50/70 via-white to-white border border-emerald-200 shadow-sm animate-fade-in">
+          <DeliveryConfetti />
+          <div className="relative z-10 flex flex-col items-center">
+            <LottieIcon name="order-delivered" loop={false} className="h-36 w-36" />
+            <h2 className="text-xl font-extrabold text-ink mt-2">Order Delivered!</h2>
+            <p className="text-sm font-semibold text-emerald-700 mt-1 flex items-center justify-center gap-1.5">
+              <span>Enjoy your items!</span> <span>🎉</span>
+            </p>
+            <p className="text-xs text-ink-faint mt-1 max-w-sm">
+              Your delivery partner has safely handed over your order. Thank you for shopping with us!
+            </p>
+          </div>
         </section>
       )}
 

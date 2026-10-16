@@ -175,7 +175,7 @@ const [tab, setTab] = useState<Tab>("available");
       return { ok: false };
     }
     await Promise.all([load(tab), refreshAvailCount()]);
-    return { ok: true, remittanceDue: json.remittanceDue };
+    return { ok: true, remittanceDue: json.remittance_due ?? json.remittanceDue };
   }
 
   return (
