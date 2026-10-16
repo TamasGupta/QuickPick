@@ -61,92 +61,134 @@ export const POST = withApiLogging("/api/webhook/razorpay", async (req: Request)
 
   const event = body.event;
 
-  // Handle delivery payment (buyer pays via UPI QR)
-  if (event === "payment.captured") {
-    const payment = body.payload.payment.entity;
-    const orderId = payment.notes?.order_id;
-    const type = payment.notes?.type;
+  // Handle delivery payment and rider remittance success
+  const isPaymentSuccess =
+    event === "payment.captured" ||
+    event === "qr_code.credited" ||
+    event === "order.paid";
 
-    if (type === "delivery_payment" && orderId) {
-      // Verify this is a valid delivery payment
-      const { data: order } = await service
+  if (isPaymentSuccess) {
+    const payment = body.payload?.payment?.entity;
+    const qrEntity = body.payload?.qr_code?.entity;
+    const orderEntity = body.payload?.order?.entity;
+
+    const notes = {
+      ...(orderEntity?.notes ?? {}),
+      ...(qrEntity?.notes ?? {}),
+      ...(payment?.notes ?? {}),
+    };
+
+    const orderId = notes.order_id;
+    const type = notes.type;
+    const qrCodeId = payment?.qr_code_id ?? qrEntity?.id;
+    const rzpOrderId = payment?.order_id ?? orderEntity?.id ?? notes.razorpay_order_id;
+
+    // 1. Delivery Payment (buyer pays via UPI QR)
+    let order: any = null;
+
+    if (orderId) {
+      const { data } = await service
         .from("orders")
-        .select("id, razorpay_delivery_order_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, payment_status")
+        .select("id, razorpay_delivery_order_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, payment_status, delivery_payment_status")
         .eq("id", orderId)
         .single();
+      order = data;
+    }
 
-      // Order matches if payment came from its Razorpay order OR its QR code,
-      // or notes carry the same razorpay order id (QR payments have null order_id).
-      const notesRzpOrderId = payment.notes?.razorpay_order_id;
-      const matchesOrder =
-        order &&
-        (order.razorpay_delivery_order_id === payment.order_id ||
-          (notesRzpOrderId && order.razorpay_delivery_order_id === notesRzpOrderId));
+    if (!order && qrCodeId) {
+      const { data } = await service
+        .from("orders")
+        .select("id, razorpay_delivery_order_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, payment_status, delivery_payment_status")
+        .eq("delivery_qr_id", qrCodeId)
+        .single();
+      order = data;
+    }
 
-      if (matchesOrder) {
-        // Mark delivery payment as paid
+    if (!order && rzpOrderId) {
+      const { data } = await service
+        .from("orders")
+        .select("id, razorpay_delivery_order_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, payment_status, delivery_payment_status")
+        .eq("razorpay_delivery_order_id", rzpOrderId)
+        .single();
+      order = data;
+    }
+
+    if (order) {
+      const isDeliveryPayment =
+        type === "delivery_payment" ||
+        (qrCodeId && order.delivery_qr_id === qrCodeId) ||
+        (rzpOrderId && order.razorpay_delivery_order_id === rzpOrderId);
+
+      if (isDeliveryPayment) {
         await service
           .from("orders")
           .update({
             delivery_payment_status: "paid",
-            razorpay_delivery_payment_id: payment.id,
+            razorpay_delivery_payment_id: payment?.id ?? null,
             payment_status: "paid",
+            payment_mode: "upi",
           })
-          .eq("id", orderId);
+          .eq("id", order.id);
 
-        // For COD orders paid via UPI: rider keeps delivery_fee, owes (subtotal + other_charges) to platform
-        const remittanceDue = order.payment_status === "cod"
-          ? order.subtotal + order.other_charges
-          : 0;
-
-        if (remittanceDue > 0) {
-          await service
-            .from("orders")
-            .update({
-              rider_remittance_due: remittanceDue,
-              rider_remittance_status: "pending",
-            })
-            .eq("id", orderId);
-        }
-
-        console.log(`[webhook] Delivery payment captured for order ${orderId}`);
+        console.log(`[webhook] Delivery payment confirmed as paid for order ${order.id}`);
       }
     }
 
-    // Handle rider remittance payment (rider pays platform their due)
-    if (type === "rider_remittance" && orderId) {
-      const { data: order } = await service
-        .from("orders")
-        .select("id, razorpay_remittance_order_id, rider_remittance_due")
-        .eq("id", orderId)
-        .single();
+    // 2. Rider remittance payment (rider pays platform their cash dues)
+    if (type === "rider_remittance" || (rzpOrderId && !order)) {
+      let remitOrder: any = null;
+      if (orderId) {
+        const { data } = await service
+          .from("orders")
+          .select("id, razorpay_remittance_order_id, rider_remittance_due")
+          .eq("id", orderId)
+          .single();
+        remitOrder = data;
+      }
+      if (!remitOrder && rzpOrderId) {
+        const { data } = await service
+          .from("orders")
+          .select("id, razorpay_remittance_order_id, rider_remittance_due")
+          .eq("razorpay_remittance_order_id", rzpOrderId)
+          .single();
+        remitOrder = data;
+      }
 
-      if (order && order.razorpay_remittance_order_id === payment.order_id) {
+      if (remitOrder && (remitOrder.razorpay_remittance_order_id === rzpOrderId || remitOrder.razorpay_remittance_order_id === payment?.order_id)) {
         await service
           .from("orders")
           .update({
             rider_remittance_status: "paid",
-            razorpay_remittance_payment_id: payment.id,
+            razorpay_remittance_payment_id: payment?.id ?? null,
           })
-          .eq("id", orderId);
+          .eq("id", remitOrder.id);
 
-        console.log(`[webhook] Rider remittance captured for order ${orderId}`);
+        console.log(`[webhook] Rider remittance captured for order ${remitOrder.id}`);
       }
     }
   }
 
   // Handle payment failed
   if (event === "payment.failed") {
-    const payment = body.payload.payment.entity;
-    const orderId = payment.notes?.order_id;
-    const type = payment.notes?.type;
+    const payment = body.payload?.payment?.entity;
+    const qrEntity = body.payload?.qr_code?.entity;
+    const notes = { ...(qrEntity?.notes ?? {}), ...(payment?.notes ?? {}) };
+    const orderId = notes.order_id;
+    const type = notes.type;
+    const qrCodeId = payment?.qr_code_id ?? qrEntity?.id;
 
     if (type === "delivery_payment" && orderId) {
       await service
         .from("orders")
         .update({ delivery_payment_status: "failed" })
         .eq("id", orderId);
+    } else if (qrCodeId) {
+      await service
+        .from("orders")
+        .update({ delivery_payment_status: "failed" })
+        .eq("delivery_qr_id", qrCodeId);
     }
+
     if (type === "rider_remittance" && orderId) {
       await service
         .from("orders")

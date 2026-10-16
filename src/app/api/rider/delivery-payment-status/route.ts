@@ -20,7 +20,7 @@ export const GET = withApiLogging("/api/rider/delivery-payment-status", async (r
 
   const { data: order, error } = await service
     .from("orders")
-    .select("id, rider_id, payment_mode, delivery_payment_status, razorpay_delivery_order_id, razorpay_delivery_payment_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, rider_remittance_due, rider_remittance_status, razorpay_remittance_order_id")
+    .select("id, rider_id, payment_mode, payment_status, delivery_payment_status, razorpay_delivery_order_id, razorpay_delivery_payment_id, delivery_qr_id, total, subtotal, delivery_fee, other_charges, rider_remittance_due, rider_remittance_status, razorpay_remittance_order_id")
     .eq("id", orderId)
     .single();
 
@@ -33,18 +33,25 @@ export const GET = withApiLogging("/api/rider/delivery-payment-status", async (r
       const { getRazorpay } = await import("@/lib/razorpay");
       const rzp = getRazorpay();
       let captured: any = null;
+
       if (order.delivery_qr_id) {
-        const res: any = await new Promise((resolve, reject) => {
-          (rzp as any).qrCode.fetchAllPayments(order.delivery_qr_id, {}, (err: any, data: any) =>
-            err ? reject(err) : resolve(data)
-          );
-        });
-        captured = res?.items?.find((p: any) => p.status === "captured");
+        try {
+          const res: any = await (rzp as any).qrCode.fetchAllPayments(order.delivery_qr_id);
+          captured = res?.items?.find((p: any) => p.status === "captured");
+        } catch (qrErr) {
+          console.warn("[delivery-payment-status] QR payments fetch failed:", qrErr);
+        }
       }
+
       if (!captured && order.razorpay_delivery_order_id) {
-        const res: any = await (rzp as any).orders.fetchPayments(order.razorpay_delivery_order_id);
-        captured = res?.items?.find((p: any) => p.status === "captured");
+        try {
+          const res: any = await (rzp as any).orders.fetchPayments(order.razorpay_delivery_order_id);
+          captured = res?.items?.find((p: any) => p.status === "captured");
+        } catch (ordErr) {
+          console.warn("[delivery-payment-status] Order payments fetch failed:", ordErr);
+        }
       }
+
       if (captured) {
         await service
           .from("orders")
@@ -52,9 +59,12 @@ export const GET = withApiLogging("/api/rider/delivery-payment-status", async (r
             delivery_payment_status: "paid",
             razorpay_delivery_payment_id: captured.id,
             payment_status: "paid",
+            payment_mode: "upi",
           })
           .eq("id", order.id);
         order.delivery_payment_status = "paid";
+        order.payment_status = "paid";
+        order.payment_mode = "upi";
         order.razorpay_delivery_payment_id = captured.id;
       }
     } catch (e) {
@@ -64,6 +74,7 @@ export const GET = withApiLogging("/api/rider/delivery-payment-status", async (r
 
   return NextResponse.json({
     payment_mode: order.payment_mode,
+    payment_status: order.payment_status,
     delivery_payment_status: order.delivery_payment_status,
     razorpay_delivery_order_id: order.razorpay_delivery_order_id,
     razorpay_delivery_payment_id: order.razorpay_delivery_payment_id,

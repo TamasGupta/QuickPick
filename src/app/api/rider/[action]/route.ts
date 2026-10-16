@@ -93,10 +93,15 @@ export const POST = withApiLogging(
       );
     }
 
-    // Set payment_mode if not already set
-    const patch: Record<string, unknown> = { status: "delivered", updated_at: now() };
-    if (!order.payment_mode) {
-      patch.payment_mode = paymentMode;
+    // Set payment_mode and ensure payment_status is updated to paid for UPI
+    const patch: Record<string, unknown> = {
+      status: "delivered",
+      updated_at: now(),
+      payment_mode: order.payment_mode || paymentMode,
+    };
+    if (paymentMode === "upi" || order.delivery_payment_status === "paid") {
+      patch.payment_status = "paid";
+      patch.delivery_payment_status = "paid";
     }
 
     const { error } = await service.from("orders").update(patch).eq("id", orderId);

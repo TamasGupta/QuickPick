@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   Package, MapPin, Phone, Navigation, Check, Store, RefreshCw, IndianRupee, Clock, User as UserIcon, LogOut, Mail, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Calendar, CreditCard, Banknote, QrCode, AlertCircle, CheckCircle, X, Maximize2,
@@ -30,6 +30,8 @@ function RiderOrderCard({
   const [remittanceDue, setRemittanceDue] = useState(0);
   const [showQrModal, setShowQrModal] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const isCompletingRef = useRef(false);
   const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
   const isCod = o.payment_status === "cod";
 
@@ -41,9 +43,66 @@ function RiderOrderCard({
     setRemittanceDue(0);
   }, [o.id, o.status]);
 
+  const completeDelivery = async (mode: "cash" | "upi") => {
+    if (isCompletingRef.current) return;
+    isCompletingRef.current = true;
+    try {
+      const result = await act("deliver", o.id, otp, mode);
+      if (result.ok) {
+        setShowQrModal(false);
+        if (result.remittanceDue) {
+          setRemittanceDue(result.remittanceDue);
+          setDeliveryStep("cash_complete");
+        }
+      } else if (result.requirePayment) {
+        setDeliveryStep("payment_mode");
+      }
+    } finally {
+      isCompletingRef.current = false;
+    }
+  };
+
+  const checkPaymentStatus = async (silent = false) => {
+    if (isCompletingRef.current) return;
+    if (!silent) setCheckingPayment(true);
+    try {
+      const res = await fetch(`/api/rider/delivery-payment-status?order_id=${o.id}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        if (!silent) notify.error("Could not verify payment status");
+        return;
+      }
+      const data = await res.json();
+      if (data.delivery_payment_status === "paid") {
+        setShowQrModal(false);
+        notify.success("Payment confirmed! Completing delivery...");
+        await completeDelivery(paymentMode ?? "upi");
+      } else if (data.delivery_payment_status === "failed") {
+        setShowQrModal(false);
+        notify.error("Payment failed. Please retry or collect cash.");
+        setDeliveryStep("payment_mode");
+        setUpiData(null);
+        setQrCodeUrl(null);
+      } else if (!silent) {
+        notify.info("Payment not received yet. Waiting for buyer...");
+      }
+    } catch (err) {
+      console.error("[poll] check delivery payment status error:", err);
+      if (!silent) notify.error("Failed to check payment status");
+    } finally {
+      if (!silent) setCheckingPayment(false);
+    }
+  };
+
   const startPayment = async (mode: "cash" | "upi") => {
     setPaymentMode(mode);
     if (mode === "upi") {
+      if (o.delivery_payment_status === "paid") {
+        completeDelivery("upi");
+        return;
+      }
       setDeliveryStep("upi_qr");
       try {
         const res = await fetch("/api/rider/create-delivery-payment", {
@@ -60,11 +119,13 @@ function RiderOrderCard({
           });
           // Fetch QR code image URL
           fetchUpiQr(data.razorpay_order_id, data.key_id);
-          // Realtime subscription auto-starts when deliveryStep becomes "upi_qr"
+          // Realtime subscription + polling auto-starts when deliveryStep becomes "upi_qr"
+        } else {
+          throw new Error(data.error || "Failed to create UPI payment");
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        notify.error("Failed to create UPI payment");
+        notify.error(err.message || "Failed to create UPI payment");
         setDeliveryStep("payment_mode");
       }
     } else {
@@ -118,6 +179,28 @@ function RiderOrderCard({
     }
   };
 
+  // Polling fallback: automatically checks delivery payment status every 3s
+  useEffect(() => {
+    if (deliveryStep !== "upi_qr") return;
+    if (!otp || otp.length !== 4) return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      if (cancelled || isCompletingRef.current) return;
+      await checkPaymentStatus(true);
+    };
+
+    const timer = setTimeout(poll, 2000);
+    const interval = setInterval(poll, 3000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [deliveryStep, otp, o.id, paymentMode]);
+
   // Supabase Realtime subscription for payment status updates.
   // Starts as soon as OTP is verified and rider is on the payment step,
   // so a captured payment auto-completes the delivery via realtime.
@@ -140,8 +223,11 @@ function RiderOrderCard({
           console.log("[realtime] orders update:", payload.new?.delivery_payment_status);
           const newStatus = payload.new?.delivery_payment_status;
           if (newStatus === "paid") {
+            setShowQrModal(false);
+            notify.success("Payment confirmed! Completing delivery...");
             completeDelivery(paymentMode ?? "upi");
           } else if (newStatus === "failed") {
+            setShowQrModal(false);
             notify.error("Payment failed");
             setDeliveryStep("payment_mode");
             setUpiData(null);
@@ -157,18 +243,6 @@ function RiderOrderCard({
       supabase.removeChannel(channel);
     };
   }, [deliveryStep, otp, o.id, paymentMode]);
-
-  const completeDelivery = async (mode: "cash" | "upi") => {
-    const result = await act("deliver", o.id, otp, mode);
-    if (result.ok) {
-      if (result.remittanceDue) {
-        setRemittanceDue(result.remittanceDue);
-        setDeliveryStep("cash_complete");
-      }
-    } else if (result.requirePayment) {
-      setDeliveryStep("payment_mode");
-    }
-  };
 
   const verifyOtp = async () => {
     if (otp.length !== 4) return false;
@@ -494,14 +568,23 @@ function RiderOrderCard({
                   </div>
                 )}
               </div>
-              <p className="text-xs text-center text-ink-faint">Auto-opened fullscreen · Tap QR to reopen · Waiting for buyer to complete payment...</p>
-              <div className="flex justify-center gap-2">
+              <p className="text-xs text-center text-ink-faint">Auto-opened fullscreen · Tap QR to reopen · Auto-detecting payment...</p>
+              <div className="flex flex-col gap-2">
                 <button
-                  onClick={() => { setDeliveryStep("payment_mode"); setUpiData(null); setQrCodeUrl(null); }}
-                  disabled={busy}
-                  className="btn-outline text-xs"
+                  type="button"
+                  onClick={() => checkPaymentStatus(false)}
+                  disabled={busy || checkingPayment}
+                  className="btn-primary w-full text-xs flex items-center justify-center gap-1.5 py-2"
                 >
-                  Cancel
+                  {checkingPayment ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Check Payment Status
+                </button>
+                <button
+                  onClick={() => { setDeliveryStep("payment_mode"); setUpiData(null); setQrCodeUrl(null); setShowQrModal(false); }}
+                  disabled={busy}
+                  className="btn-outline text-xs w-full py-1.5"
+                >
+                  Cancel / Choose Cash
                 </button>
               </div>
             </div>
@@ -594,8 +677,27 @@ function RiderOrderCard({
               />
             </div>
             
-            <div className="rounded-lg bg-gray-50 p-4 text-center text-sm text-ink-faint">
-              Order: #{upiData.orderId.slice(0, 8)}...
+            <div className="rounded-lg bg-gray-50 p-3 text-center text-sm text-ink-faint mb-4">
+              Order: #{upiData.orderId.slice(0, 8)}... · Auto-checking payment status
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => checkPaymentStatus(false)}
+                disabled={busy || checkingPayment}
+                className="btn-primary w-full py-3 text-base font-semibold flex items-center justify-center gap-2"
+              >
+                {checkingPayment ? <Spinner className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
+                Check Payment Status
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="btn-outline w-full py-2 text-sm text-ink-faint"
+              >
+                Close Fullscreen
+              </button>
             </div>
           </div>
         </div>

@@ -473,6 +473,15 @@ create policy "orders_read_available_for_riders" on orders
     and exists (select 1 from profiles where id = auth.uid() and role = 'rider')
   );
 
+-- Lets riders see orders assigned to them for Realtime payment status updates
+drop policy if exists "orders_read_assigned_to_rider" on orders;
+create policy "orders_read_assigned_to_rider" on orders
+  for select using (
+    rider_id = auth.uid()
+    and exists (select 1 from profiles where id = auth.uid() and role = 'rider')
+  );
+
+
 create or replace function orders_guard_protected_columns()
 returns trigger language plpgsql as $$
 begin
