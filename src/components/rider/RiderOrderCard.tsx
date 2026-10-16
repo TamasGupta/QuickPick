@@ -30,7 +30,6 @@ function RiderOrderCard({
   const [remittanceDue, setRemittanceDue] = useState(0);
   const [showQrModal, setShowQrModal] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(false);
   const isCompletingRef = useRef(false);
   const itemCount = o.items.reduce((n, i) => n + i.qty, 0);
   const isCod = o.payment_status === "cod";
@@ -62,40 +61,6 @@ function RiderOrderCard({
     }
   };
 
-  const checkPaymentStatus = async (silent = false) => {
-    if (isCompletingRef.current) return;
-    if (!silent) setCheckingPayment(true);
-    try {
-      const res = await fetch(`/api/rider/delivery-payment-status?order_id=${o.id}`, {
-        cache: "no-store",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        if (!silent) notify.error("Could not verify payment status");
-        return;
-      }
-      const data = await res.json();
-      if (data.delivery_payment_status === "paid") {
-        setShowQrModal(false);
-        notify.success("Payment confirmed! Completing delivery...");
-        await completeDelivery(paymentMode ?? "upi");
-      } else if (data.delivery_payment_status === "failed") {
-        setShowQrModal(false);
-        notify.error("Payment failed. Please retry or collect cash.");
-        setDeliveryStep("payment_mode");
-        setUpiData(null);
-        setQrCodeUrl(null);
-      } else if (!silent) {
-        notify.info("Payment not received yet. Waiting for buyer...");
-      }
-    } catch (err) {
-      console.error("[poll] check delivery payment status error:", err);
-      if (!silent) notify.error("Failed to check payment status");
-    } finally {
-      if (!silent) setCheckingPayment(false);
-    }
-  };
-
   const startPayment = async (mode: "cash" | "upi") => {
     setPaymentMode(mode);
     if (mode === "upi") {
@@ -119,7 +84,7 @@ function RiderOrderCard({
           });
           // Fetch QR code image URL
           fetchUpiQr(data.razorpay_order_id, data.key_id);
-          // Realtime subscription + polling auto-starts when deliveryStep becomes "upi_qr"
+          // Realtime subscription auto-detects when the webhook updates orders table
         } else {
           throw new Error(data.error || "Failed to create UPI payment");
         }
@@ -179,31 +144,10 @@ function RiderOrderCard({
     }
   };
 
-  // Polling fallback: automatically checks delivery payment status every 3s
-  useEffect(() => {
-    if (deliveryStep !== "upi_qr") return;
-    if (!otp || otp.length !== 4) return;
-
-    let cancelled = false;
-
-    const poll = async () => {
-      if (cancelled || isCompletingRef.current) return;
-      await checkPaymentStatus(true);
-    };
-
-    const timer = setTimeout(poll, 2000);
-    const interval = setInterval(poll, 3000);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [deliveryStep, otp, o.id, paymentMode]);
-
-  // Supabase Realtime subscription for payment status updates.
-  // Starts as soon as OTP is verified and rider is on the payment step,
-  // so a captured payment auto-completes the delivery via realtime.
+  // Supabase Realtime subscription on `orders` table.
+  // When Razorpay webhook receives the payment, it updates `orders` with
+  // delivery_payment_status: "paid" and payment_status: "paid".
+  // This listener immediately detects that change and completes delivery.
   useEffect(() => {
     if (deliveryStep !== "upi_qr" && deliveryStep !== "payment_mode") return;
     if (!otp || otp.length !== 4) return;
@@ -220,13 +164,15 @@ function RiderOrderCard({
           filter: `id=eq.${o.id}`,
         },
         (payload) => {
-          console.log("[realtime] orders update:", payload.new?.delivery_payment_status);
-          const newStatus = payload.new?.delivery_payment_status;
-          if (newStatus === "paid") {
+          console.log("[realtime] orders update:", payload.new?.delivery_payment_status, payload.new?.payment_status);
+          const newDeliveryStatus = payload.new?.delivery_payment_status;
+          const newPaymentStatus = payload.new?.payment_status;
+
+          if (newDeliveryStatus === "paid" || newPaymentStatus === "paid") {
             setShowQrModal(false);
             notify.success("Payment confirmed! Completing delivery...");
             completeDelivery(paymentMode ?? "upi");
-          } else if (newStatus === "failed") {
+          } else if (newDeliveryStatus === "failed") {
             setShowQrModal(false);
             notify.error("Payment failed");
             setDeliveryStep("payment_mode");
@@ -568,21 +514,18 @@ function RiderOrderCard({
                   </div>
                 )}
               </div>
-              <p className="text-xs text-center text-ink-faint">Auto-opened fullscreen · Tap QR to reopen · Auto-detecting payment...</p>
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => checkPaymentStatus(false)}
-                  disabled={busy || checkingPayment}
-                  className="btn-primary w-full text-xs flex items-center justify-center gap-1.5 py-2"
-                >
-                  {checkingPayment ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  Check Payment Status
-                </button>
+              <p className="text-xs text-center text-ink-faint flex items-center justify-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+                </span>
+                Waiting for buyer to complete payment (live)...
+              </p>
+              <div className="flex justify-center gap-2">
                 <button
                   onClick={() => { setDeliveryStep("payment_mode"); setUpiData(null); setQrCodeUrl(null); setShowQrModal(false); }}
                   disabled={busy}
-                  className="btn-outline text-xs w-full py-1.5"
+                  className="btn-outline text-xs"
                 >
                   Cancel / Choose Cash
                 </button>
@@ -677,26 +620,29 @@ function RiderOrderCard({
               />
             </div>
             
-            <div className="rounded-lg bg-gray-50 p-3 text-center text-sm text-ink-faint mb-4">
-              Order: #{upiData.orderId.slice(0, 8)}... · Auto-checking payment status
+            <div className="rounded-lg bg-gray-50 p-3 text-center text-sm text-ink-faint mb-4 flex items-center justify-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+              </span>
+              Waiting for buyer to complete payment...
             </div>
 
-            <div className="flex flex-col gap-2.5">
-              <button
-                type="button"
-                onClick={() => checkPaymentStatus(false)}
-                disabled={busy || checkingPayment}
-                className="btn-primary w-full py-3 text-base font-semibold flex items-center justify-center gap-2"
-              >
-                {checkingPayment ? <Spinner className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
-                Check Payment Status
-              </button>
+            <div className="flex flex-col gap-2">
               <button
                 type="button"
                 onClick={() => setShowQrModal(false)}
-                className="btn-outline w-full py-2 text-sm text-ink-faint"
+                className="btn-outline w-full py-2.5 text-sm font-medium"
               >
                 Close Fullscreen
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDeliveryStep("payment_mode"); setUpiData(null); setQrCodeUrl(null); setShowQrModal(false); }}
+                disabled={busy}
+                className="btn-ghost text-xs text-ink-faint hover:text-red-600"
+              >
+                Cancel UPI / Switch to Cash
               </button>
             </div>
           </div>
