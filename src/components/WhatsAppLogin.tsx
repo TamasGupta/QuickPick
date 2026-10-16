@@ -75,7 +75,7 @@ export function WhatsAppLogin({
     }
 
     setLoading(true);
-
+    //checking git
     try {
       const phoneE164 = `+91${phone}`;
       const res = await fetch("/api/auth/evolution/send-otp", {
