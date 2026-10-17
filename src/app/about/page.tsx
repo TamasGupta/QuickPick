@@ -41,20 +41,22 @@ export default function AboutPage() {
             About GrabOn
           </h1>
           <p className="mt-2 text-base text-white/85">
-            Agra&apos;s fastest grocery delivery — fresh essentials at your
-            door in minutes.
+            Agra&apos;s fastest grocery delivery — fresh essentials at your door
+            in minutes.
           </p>
         </div>
 
         <div className="space-y-4 p-6">
           <p className="text-sm leading-relaxed text-ink-soft">
             GrabOn started with a very real problem. As an{" "}
-            <strong className="text-ink">MCA student at Pondicherry University</strong>,
-            I noticed something that every student on campus quietly lived with —
-            there was no quick-commerce platform nearby. If you ran out of
-            shampoo, needed a late-night snack, or forgot to buy something for
-            an assignment, your only option was to step off campus and make the
-            trip yourself.
+            <strong className="text-ink">
+              MCA student at Pondicherry University
+            </strong>
+            , I noticed something that every student on campus quietly lived
+            with — there was no quick-commerce platform nearby. If you ran out
+            of shampoo, needed a late-night snack, or forgot to buy something
+            for an assignment, your only option was to step off campus and make
+            the trip yourself.
           </p>
           <p className="text-sm leading-relaxed text-ink-soft">
             That gap frustrated me enough to build a solution. GrabOn is a
@@ -64,19 +66,21 @@ export default function AboutPage() {
           </p>
           <p className="text-sm leading-relaxed text-ink-soft">
             What began as a campus-side project is now a full-featured platform
-            connecting local sellers and riders to deliver essentials fast. Every
-            line of code, every design decision, and every feature exists because
-            a real person needed it.
+            connecting local sellers and riders to deliver essentials fast.
+            Every line of code, every design decision, and every feature exists
+            because a real person needed it.
           </p>
-          <div className="flex items-center gap-3 rounded-xl bg-brand-50 p-3">
+          {/* <div className="flex items-center gap-3 rounded-xl bg-brand-50 p-3">
             <span className="text-2xl">👨‍💻</span>
             <div>
-              <p className="text-xs font-bold text-ink">Built by a student, for everyone</p>
+              <p className="text-xs font-bold text-ink">
+                Built by a student, for everyone
+              </p>
               <p className="text-xs text-ink-soft">
                 MCA · Pondicherry University
               </p>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -110,10 +114,10 @@ export default function AboutPage() {
         <p className="text-sm text-ink-soft">
           Questions or feedback?{" "}
           <a
-            href="mailto:tamasgupta@gmail.com"
+            href="mailto:tamasgupta02@gmail.com"
             className="font-semibold text-brand-600 underline-offset-2 hover:underline"
           >
-            tamasgupta@gmail.com
+            tamasgupta02@gmail.com
           </a>
         </p>
       </div>

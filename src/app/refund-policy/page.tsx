@@ -18,7 +18,7 @@ const STEPS = [
   {
     icon: Mail,
     step: "Step 2 — Email us",
-    body: "Send an email to tamasgupta@gmail.com with the subject line \"Refund Request — Order #[your order ID]\". In the email, describe the exact issue (e.g. wrong item, damaged product, missing quantity). Attach a photo of the product if possible.",
+    body: "Send an email to tamasgupt02a@gmail.com with the subject line \"Refund Request — Order #[your order ID]\". In the email, describe the exact issue (e.g. wrong item, damaged product, missing quantity). Attach a photo of the product if possible.",
   },
   {
     icon: Package,
@@ -131,10 +131,10 @@ export default function RefundPolicyPage() {
         <p className="text-sm leading-relaxed text-ink-soft">
           You may cancel an order only <strong className="text-ink">before it is accepted by the seller</strong>. Once the seller confirms your order, cancellation is not possible. If you need assistance, email{" "}
           <a
-            href="mailto:tamasgupta@gmail.com"
+            href="mailto:tamasgupta02@gmail.com"
             className="font-semibold text-brand-600 underline-offset-2 hover:underline"
           >
-            tamasgupta@gmail.com
+            tamasgupta02@gmail.com
           </a>{" "}
           immediately.
         </p>
@@ -146,10 +146,10 @@ export default function RefundPolicyPage() {
           Questions about a refund?
         </p>
         <a
-          href="mailto:tamasgupta@gmail.com"
+          href="mailto:tamasgupta02@gmail.com"
           className="mt-1 block text-sm text-brand-600 underline-offset-2 hover:underline"
         >
-          tamasgupta@gmail.com
+          tamasgupta02@gmail.com
         </a>
         <p className="mt-2 text-xs text-ink-faint">
           We typically respond within 4–6 business hours.

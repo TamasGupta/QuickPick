@@ -11,7 +11,7 @@ const LAST_UPDATED = "23 July 2025";
 const SECTIONS = [
   {
     title: "1. Who we are",
-    body: `GrabOn ("we", "us", "our") is a grocery delivery platform operated from Agra, Uttar Pradesh, India. Our contact email is tamasgupta@gmail.com.`,
+    body: `GrabOn is a quick commerce platform operated from Pondicherry University, Puducherry, India. Our contact email is tamasgupta02@gmail.com.`,
   },
   {
     title: "2. Information we collect",
@@ -27,7 +27,7 @@ const SECTIONS = [
   },
   {
     title: "5. Data retention",
-    body: `We retain your account data for as long as your account is active. You may request deletion of your account and associated data at any time by emailing tamasgupta@gmail.com. We will process the request within 30 days.`,
+    body: `We retain your account data for as long as your account is active. You may request deletion of your account and associated data at any time by emailing tamasgupt02a@gmail.com. We will process the request within 30 days.`,
   },
   {
     title: "6. Cookies & local storage",
@@ -35,11 +35,11 @@ const SECTIONS = [
   },
   {
     title: "7. Children's privacy",
-    body: `GrabOn is not intended for children under the age of 13. We do not knowingly collect personal data from children. If you believe a child has provided us with personal data, please contact us at tamasgupta@gmail.com.`,
+    body: `GrabOn is not intended for children under the age of 13. We do not knowingly collect personal data from children. If you believe a child has provided us with personal data, please contact us at tamasgupta02@gmail.com.`,
   },
   {
     title: "8. Your rights",
-    body: `Under India's Digital Personal Data Protection Act (DPDP Act, 2023), you have the right to:\n\n• Access the personal data we hold about you.\n• Correct inaccurate data.\n• Request deletion of your data.\n• Withdraw consent at any time.\n\nTo exercise any of these rights, email us at tamasgupta@gmail.com.`,
+    body: `Under India's Digital Personal Data Protection Act (DPDP Act, 2023), you have the right to:\n\n• Access the personal data we hold about you.\n• Correct inaccurate data.\n• Request deletion of your data.\n• Withdraw consent at any time.\n\nTo exercise any of these rights, email us at tamasgupta02@gmail.com.`,
   },
   {
     title: "9. Security",
@@ -51,7 +51,7 @@ const SECTIONS = [
   },
   {
     title: "11. Contact us",
-    body: `For any privacy-related queries, please contact:\n\n**GrabOn**\nAgra, Uttar Pradesh, India\nEmail: tamasgupta@gmail.com`,
+    body: `For any privacy-related queries, please contact:\n\n**GrabOn**\nPondicherry University, Puducherry, India\nEmail: tamasgupta02@gmail.com`,
   },
 ];
 
@@ -82,7 +82,10 @@ export default function PrivacyPage() {
                   key={i}
                   className="text-sm leading-relaxed text-ink-soft whitespace-pre-line"
                   dangerouslySetInnerHTML={{
-                    __html: para.replace(/\*\*(.*?)\*\*/g, "<strong class='text-ink'>$1</strong>"),
+                    __html: para.replace(
+                      /\*\*(.*?)\*\*/g,
+                      "<strong class='text-ink'>$1</strong>",
+                    ),
                   }}
                 />
               ))}

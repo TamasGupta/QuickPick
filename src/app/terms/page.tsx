@@ -19,7 +19,7 @@ const SECTIONS = [
   },
   {
     title: "3. Account registration",
-    body: `To place orders you must create an account using your phone number. You are responsible for maintaining the confidentiality of your account and for all activities that occur under it. Notify us immediately at tamasgupta@gmail.com if you suspect unauthorised access to your account.`,
+    body: `To place orders you must create an account using your phone number. You are responsible for maintaining the confidentiality of your account and for all activities that occur under it. Notify us immediately at tamasgupta02@gmail.com if you suspect unauthorised access to your account.`,
   },
   {
     title: "4. Orders & payment",
@@ -55,7 +55,7 @@ const SECTIONS = [
   },
   {
     title: "12. Contact",
-    body: `For any questions regarding these Terms, contact us at:\n\n**GrabOn**\nAgra, Uttar Pradesh, India\nEmail: tamasgupta@gmail.com`,
+    body: `For any questions regarding these Terms, contact us at:\n\n**GrabOn**\nAgra, Uttar Pradesh, India\nEmail: tamasgupta02@gmail.com`,
   },
 ];
 
