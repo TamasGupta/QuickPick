@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { create } from "zustand";
 import { DELIVERY_FEE, OTHER_CHARGES, MAX_CART_ITEMS, MIN_ORDER } from "@/lib/utils";
 import type { AppSettings } from "@/lib/types";
@@ -66,9 +67,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 // Convenience hook
 export function useSettings() {
   const store = useSettingsStore();
-  // Auto-fetch on first hook mount if not already loaded
-  if (typeof window !== "undefined" && !store.loaded && !store.loading) {
-    store.fetchSettings();
-  }
+  
+  useEffect(() => {
+    if (!store.loaded && !store.loading) {
+      store.fetchSettings();
+    }
+  }, [store.loaded, store.loading, store.fetchSettings]);
+
   return store;
 }

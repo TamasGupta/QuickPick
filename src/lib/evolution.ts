@@ -1,11 +1,11 @@
 export function getEvolutionConfig() {
   const baseUrl = process.env.EVOLUTION_API_URL;
   const apiKey = process.env.EVOLUTION_API_KEY;
-  const instanceName = process.env.EVOLUTION_OTP_INSTANCE_NAME;
+  const instanceName = process.env.EVOLUTION_OTP_INSTANCE_NAME || "grabonn";
 
-  if (!baseUrl || !apiKey || !instanceName) {
+  if (!baseUrl || !apiKey) {
     throw new Error(
-      "Missing Evolution API configuration (EVOLUTION_API_URL, EVOLUTION_API_KEY, or EVOLUTION_OTP_INSTANCE_NAME). Please check your environment variables."
+      "Missing Evolution API configuration (EVOLUTION_API_URL or EVOLUTION_API_KEY). Please check your environment variables."
     );
   }
 
@@ -13,10 +13,7 @@ export function getEvolutionConfig() {
 }
 
 function resolveInstanceName(instanceName?: string): string {
-  if (instanceName && instanceName !== "otp-sender") {
-    return instanceName;
-  }
-  return getEvolutionConfig().instanceName;
+  return instanceName || getEvolutionConfig().instanceName;
 }
 
 interface EvolutionInstance {
