@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/store/notify";
 import { ProductEditModal } from "@/components/ProductEditModal";
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import type { Product } from "@/lib/types";
 
-export function SellerProductRow({ product: initial }: { product: Product }) {
+export function SellerProductRow({
+  product: initial,
+  onDelete,
+  onUpdate,
+}: {
+  product: Product;
+  onDelete?: (id: string) => void;
+  onUpdate?: (updated: Product) => void;
+}) {
   const supabase = createClient();
   const [product, setProduct] = useState(initial);
   const [price, setPrice] = useState(initial.price);
@@ -16,6 +25,8 @@ export function SellerProductRow({ product: initial }: { product: Product }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function save() {
     setSaving(true);
@@ -29,7 +40,9 @@ export function SellerProductRow({ product: initial }: { product: Product }) {
       return;
     }
     notify.success("Product updated");
-    setProduct((p) => ({ ...p, price, stock, is_active: active }));
+    const updated = { ...product, price, stock, is_active: active };
+    setProduct(updated);
+    onUpdate?.(updated);
     setDirty(false);
   }
 
@@ -41,7 +54,9 @@ export function SellerProductRow({ product: initial }: { product: Product }) {
       setActive(!next);
       notify.error(error.message);
     } else {
-      setProduct((p) => ({ ...p, is_active: next }));
+      const updated = { ...product, is_active: next };
+      setProduct(updated);
+      onUpdate?.(updated);
     }
   }
 
@@ -51,6 +66,25 @@ export function SellerProductRow({ product: initial }: { product: Product }) {
     setStock(updated.stock);
     setActive(updated.is_active);
     setDirty(false);
+    onUpdate?.(updated);
+  }
+
+  async function handleDeleteConfirm() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/products/${product.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error ?? "Failed to delete product");
+      }
+      notify.success("Product deleted successfully");
+      setConfirmingDelete(false);
+      onDelete?.(product.id);
+    } catch (err) {
+      notify.error((err as Error).message);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -100,14 +134,35 @@ export function SellerProductRow({ product: initial }: { product: Product }) {
             {saving ? "…" : "Save"}
           </button>
         )}
-        <button className="btn-ghost p-1.5" onClick={() => setEditing(true)} aria-label="Edit product">
+        <button className="btn-ghost p-1.5" onClick={() => setEditing(true)} aria-label="Edit product" title="Edit product">
           <Pencil className="h-4 w-4" />
+        </button>
+        <button
+          className="btn-ghost p-1.5 text-red-600 hover:bg-red-50 hover:text-red-700"
+          onClick={() => setConfirmingDelete(true)}
+          aria-label="Delete product"
+          title="Delete product"
+        >
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
 
       {editing && (
-        <ProductEditModal product={product} onClose={() => setEditing(false)} onSaved={handleSaved} />
+        <ProductEditModal
+          product={product}
+          onClose={() => setEditing(false)}
+          onSaved={handleSaved}
+          onDelete={onDelete}
+        />
       )}
+
+      <ConfirmDeleteModal
+        isOpen={confirmingDelete}
+        productName={product.name}
+        loading={deleting}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }

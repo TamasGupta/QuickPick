@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Upload } from "lucide-react";
+import { X, Upload, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { notify } from "@/store/notify";
 import { Spinner } from "@/components/Loader";
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import type { Product } from "@/lib/types";
 
 const MAX_IMAGE_MB = 5;
@@ -13,13 +14,17 @@ export function ProductEditModal({
   product,
   onClose,
   onSaved,
+  onDelete,
 }: {
   product: Product;
   onClose: () => void;
   onSaved: (updated: Product) => void;
+  onDelete?: (id: string) => void;
 }) {
   const supabase = createClient();
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     name: product.name,
     brand: product.brand ?? "",
@@ -148,6 +153,25 @@ export function ProductEditModal({
     notify.success("Product updated");
     onSaved({ ...(result.data as Product), max_order_qty: maxOrderQtyVal });
     onClose();
+  }
+
+  async function handleDeleteConfirm() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/products/${product.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error ?? "Failed to delete product");
+      }
+      notify.success("Product deleted successfully");
+      setShowDeleteConfirm(false);
+      onClose();
+      onDelete?.(product.id);
+    } catch (err) {
+      notify.error((err as Error).message);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -324,15 +348,38 @@ export function ProductEditModal({
           </div>
         </div>
 
-        <div className="mt-4 flex gap-2">
-          <button className="btn-outline flex-1" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn-primary flex-1" onClick={save} disabled={saving || uploading}>
-            {saving ? "Saving…" : "Save changes"}
-          </button>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+          {onDelete ? (
+            <button
+              type="button"
+              className="btn border border-red-200 text-red-600 hover:bg-red-50 text-xs py-2 px-3"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={saving || uploading || deleting}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete product
+            </button>
+          ) : (
+            <div />
+          )}
+          <div className="flex gap-2 ml-auto">
+            <button className="btn-outline" onClick={onClose} disabled={saving || deleting}>
+              Cancel
+            </button>
+            <button className="btn-primary" onClick={save} disabled={saving || uploading || deleting}>
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        isOpen={showDeleteConfirm}
+        productName={product.name}
+        loading={deleting}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }

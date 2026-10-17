@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Pencil } from "lucide-react";
+import { Search, Pencil, Trash2 } from "lucide-react";
 import { inr } from "@/lib/utils";
+import { notify } from "@/store/notify";
 import { ProductEditModal } from "@/components/ProductEditModal";
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import type { Product } from "@/lib/types";
 
 type Row = Product & { sellers: { store_name: string } | null };
@@ -12,6 +14,8 @@ export function AdminProductsTable({ products: initial }: { products: Row[] }) {
   const [products, setProducts] = useState(initial);
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Row | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<Row | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -26,6 +30,29 @@ export function AdminProductsTable({ products: initial }: { products: Row[] }) {
 
   function handleSaved(updated: Product) {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
+  }
+
+  function handleDelete(id: string) {
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function handleDeleteConfirm() {
+    if (!confirmingDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/products/${confirmingDelete.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error ?? "Failed to delete product");
+      }
+      notify.success("Product deleted successfully");
+      handleDelete(confirmingDelete.id);
+      setConfirmingDelete(null);
+    } catch (err) {
+      notify.error((err as Error).message);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -79,8 +106,16 @@ export function AdminProductsTable({ products: initial }: { products: Row[] }) {
             >
               {!p.is_active ? "Hidden" : p.stock <= 0 ? "Out of stock" : "Active"}
             </span>
-            <button className="btn-ghost shrink-0 p-1.5" onClick={() => setEditing(p)} aria-label="Edit product">
+            <button className="btn-ghost shrink-0 p-1.5" onClick={() => setEditing(p)} aria-label="Edit product" title="Edit product">
               <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              className="btn-ghost shrink-0 p-1.5 text-red-600 hover:bg-red-50 hover:text-red-700"
+              onClick={() => setConfirmingDelete(p)}
+              aria-label="Delete product"
+              title="Delete product"
+            >
+              <Trash2 className="h-4 w-4" />
             </button>
           </div>
         ))}
@@ -92,8 +127,21 @@ export function AdminProductsTable({ products: initial }: { products: Row[] }) {
       </div>
 
       {editing && (
-        <ProductEditModal product={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />
+        <ProductEditModal
+          product={editing}
+          onClose={() => setEditing(null)}
+          onSaved={handleSaved}
+          onDelete={handleDelete}
+        />
       )}
+
+      <ConfirmDeleteModal
+        isOpen={!!confirmingDelete}
+        productName={confirmingDelete?.name}
+        loading={deleting}
+        onClose={() => setConfirmingDelete(null)}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }
