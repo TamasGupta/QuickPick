@@ -10,12 +10,26 @@ export const metadata: Metadata = {
     "Browse all grocery categories — fruits, vegetables, dairy, snacks and more. Fast delivery guaranteed.",
 };
 
+const ALLOWED_CATEGORY_SLUGS = [
+  "snacks",
+  "beverages",
+  "instant-food",
+  "household",
+  "personal-care",
+];
+
 export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
   const supabase = createServerSupabase();
-  const { data } = await supabase.from("categories").select("*").order("name");
-  const categories = (data as Category[]) ?? [];
+  const { data } = await supabase
+    .from("categories")
+    .select("*")
+    .in("slug", ALLOWED_CATEGORY_SLUGS);
+
+  const categories = ALLOWED_CATEGORY_SLUGS.map((slug) =>
+    (data as Category[] | null)?.find((c) => c.slug === slug)
+  ).filter((c): c is Category => Boolean(c));
 
   return (
     <div className="space-y-4">
