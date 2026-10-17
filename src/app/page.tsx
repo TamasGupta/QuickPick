@@ -38,6 +38,17 @@ interface ValueProp {
 
 export const dynamic = "force-dynamic";
 
+// The 5 primary categories displayed on the listing page
+const ALLOWED_CATEGORY_SLUGS = [
+  "snacks",
+  "beverages",
+  "instant-food",
+  "household",
+  "personal-care",
+];
+
+const DEFAULT_CATEGORY_SLUG = "snacks";
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -68,10 +79,26 @@ export default async function HomePage({
     }
   }
 
-  const { data: categories } = await supabase
+  // Fetch only the 5 allowed categories
+  const { data: catData } = await supabase
     .from("categories")
     .select("*")
-    .order("name");
+    .in("slug", ALLOWED_CATEGORY_SLUGS);
+
+  // Preserve the explicit order
+  const categories = ALLOWED_CATEGORY_SLUGS.map((slug) =>
+    (catData as Category[] | null)?.find((c) => c.slug === slug)
+  ).filter((c): c is Category => Boolean(c));
+
+  // Default selected category is "snacks" unless a query `q` is active without a cat
+  const isSearchQuery = Boolean(searchParams.q);
+  const selectedCatSlug = isSearchQuery
+    ? (searchParams.cat ?? null)
+    : (searchParams.cat ?? DEFAULT_CATEGORY_SLUG);
+
+  const activeCat = selectedCatSlug
+    ? categories.find((c) => c.slug === selectedCatSlug) ?? null
+    : null;
 
   let query = supabase
     .from("products")
@@ -85,10 +112,10 @@ export default async function HomePage({
     // Fetch one extra row to know whether there's a next page.
     .limit(PRODUCTS_PAGE_SIZE + 1);
 
-  const activeCat = (categories as Category[] | null)?.find(
-    (c) => c.slug === searchParams.cat,
-  );
-  if (activeCat) query = query.eq("category_id", activeCat.id);
+  if (activeCat) {
+    query = query.eq("category_id", activeCat.id);
+  }
+
   const tsQuery = searchParams.q ? toPrefixTsQuery(searchParams.q) : "";
   if (tsQuery) {
     query = query.textSearch("search_tsv", tsQuery, { config: "simple" });
@@ -101,11 +128,11 @@ export default async function HomePage({
   const nextCursor = hasMore
     ? encodeProductCursor(list[list.length - 1])
     : null;
-  const searching = Boolean(searchParams.q || searchParams.cat);
+  const isCustomCategory = Boolean(searchParams.cat && searchParams.cat !== DEFAULT_CATEGORY_SLUG);
 
   return (
     <div className="space-y-6">
-      {!searching && (
+      {!isSearchQuery && (
         <>
           {/* Hero — banners auto-scroll as the background; text/CTA overlay on top */}
           <section className="relative isolate h-64 overflow-hidden rounded-3xl shadow-pop animate-fade-in sm:h-72 md:h-80">
@@ -163,28 +190,39 @@ export default async function HomePage({
         </>
       )}
 
-      {/* Categories */}
-      {/* <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-extrabold text-ink">Shop by category</h2>
+      {/* Categories Section — 5 primary categories */}
+      <section id="categories" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-extrabold text-ink sm:text-xl">Shop by category</h2>
+          <p className="hidden text-xs text-ink-faint sm:block">Click any category to filter</p>
         </div>
-        <div className="stagger grid grid-cols-4 gap-2.5 sm:grid-cols-8">
-          {(categories as Category[] | null)?.map((c) => {
+
+        <div className="grid grid-cols-5 gap-2 sm:gap-3.5">
+          {categories.map((c) => {
             const active = activeCat?.id === c.id;
             const img = categoryImage(c.slug);
+
             return (
               <Link
                 key={c.id}
-                href={active ? "/" : `/?cat=${c.slug}`}
-                className="group flex flex-col items-center gap-1.5 rounded-2xl p-1.5 text-center transition hover:-translate-y-1"
+                href={`/?cat=${c.slug}`}
+                scroll={false}
+                className={`group relative flex flex-col items-center gap-1.5 sm:gap-2 rounded-2xl p-1.5 sm:p-2.5 text-center transition-all duration-200 ${
+                  active
+                    ? "bg-white shadow-pop ring-2 ring-brand-500 ring-offset-2 ring-offset-gray-50 scale-[1.02]"
+                    : "bg-white shadow-card hover:shadow-pop hover:-translate-y-1 border border-gray-100 hover:border-brand-200"
+                }`}
               >
-                <span
-                  className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-50 to-accent-50 shadow-card transition-shadow group-hover:shadow-pop ${
-                    active ? "ring-2 ring-brand-500 ring-offset-2" : ""
+                {/* Image Container */}
+                <div
+                  className={`relative aspect-square w-full max-w-[76px] sm:max-w-[96px] overflow-hidden rounded-xl sm:rounded-2xl transition-all duration-300 ${
+                    active
+                      ? "ring-2 ring-brand-400/50 shadow-sm"
+                      : "bg-gray-50 group-hover:shadow-sm"
                   }`}
                 >
                   {img ? (
-                     eslint-disable-next-line @next/next/no-img-element 
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={img}
                       alt={c.name}
@@ -192,31 +230,62 @@ export default async function HomePage({
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                   ) : (
-                    <span className="text-2xl">{c.icon}</span>
+                    <span className="flex h-full w-full items-center justify-center text-2xl sm:text-3xl">
+                      {c.icon || "🛍️"}
+                    </span>
                   )}
-                </span>
-                <span className="text-[11px] font-semibold leading-tight text-ink-soft">
-                  {c.name}
-                </span>
+                  {active && (
+                    <div className="absolute inset-0 bg-brand-600/10 pointer-events-none" />
+                  )}
+                </div>
+
+                {/* Category Name */}
+                <div className="flex flex-col items-center min-w-0 w-full px-0.5">
+                  <span
+                    className={`text-[11px] sm:text-xs leading-tight line-clamp-2 transition-colors ${
+                      active
+                        ? "font-extrabold text-brand-700"
+                        : "font-semibold text-ink-soft group-hover:text-ink"
+                    }`}
+                  >
+                    {c.name}
+                  </span>
+                  {active ? (
+                    <span className="mt-1 h-1 w-5 sm:w-6 rounded-full bg-brand-600 animate-scale-in" />
+                  ) : (
+                    <span className="mt-1 h-1 w-5 opacity-0" />
+                  )}
+                </div>
               </Link>
             );
           })}
         </div>
-      </section> */}
+      </section>
 
-      {/* Products */}
-      <section id="products">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-extrabold text-ink">
-            {searchParams.q
-              ? `Results for "${searchParams.q}"`
-              : activeCat
-                ? activeCat.name
-                : "Popular right now"}
-          </h2>
-          {searching && (
-            <Link href="/" className="text-sm font-semibold text-brand-700">
-              Clear
+      {/* Products Section */}
+      <section id="products" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-extrabold text-ink sm:text-xl">
+              {searchParams.q
+                ? `Results for "${searchParams.q}"`
+                : activeCat
+                  ? activeCat.name
+                  : "All Products"}
+            </h2>
+            {activeCat && !searchParams.q && (
+              <span className="text-xs text-ink-faint">
+                ({list.length}{hasMore ? "+" : ""} items)
+              </span>
+            )}
+          </div>
+          {(isSearchQuery || isCustomCategory) && (
+            <Link
+              href="/"
+              scroll={false}
+              className="text-xs sm:text-sm font-semibold text-brand-600 hover:text-brand-800 transition"
+            >
+              Reset to Snacks
             </Link>
           )}
         </div>
@@ -226,16 +295,16 @@ export default async function HomePage({
             <p className="text-5xl">🧺</p>
             <p className="mt-3 font-semibold text-ink">No products found.</p>
             <p className="mt-1 text-sm">
-              Try a different search or check back soon.
+              Try a different category or search term.
             </p>
           </div>
         ) : (
           <ProductGrid
-            key={`${searchParams.q ?? ""}-${searchParams.cat ?? ""}`}
+            key={`${searchParams.q ?? ""}-${selectedCatSlug ?? ""}`}
             initialProducts={list}
             initialNextCursor={nextCursor}
             q={searchParams.q}
-            catSlug={searchParams.cat}
+            catSlug={selectedCatSlug ?? undefined}
           />
         )}
       </section>
