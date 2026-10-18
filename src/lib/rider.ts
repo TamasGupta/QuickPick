@@ -43,7 +43,7 @@ export interface RiderOrder {
     lat: number | null;
     lng: number | null;
   } | null;
-  items: { id: string; name: string; qty: number }[];
+  items: { id: string; name: string; qty: number; price: number; out_of_stock?: boolean }[];
   rider_remittance_due: number;
   rider_remittance_status: string | null;
   razorpay_remittance_order_id: string | null;
@@ -68,18 +68,24 @@ export async function enrichOrders(
       addressIds.length
         ? service.from("addresses").select("*").in("id", addressIds)
         : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-      service.from("order_items").select("id, order_id, name, qty").in("order_id", orderIds),
+      service.from("order_items").select("id, order_id, name, qty, price, out_of_stock").in("order_id", orderIds),
       service.from("sellers").select("id, store_name, address_line, city, pincode, lat, lng").in("id", sellerIds),
     ]);
 
   const buyerMap = new Map((buyers ?? []).map((b) => [b.id, b]));
   const addrMap = new Map((addresses ?? []).map((a: Record<string, unknown>) => [a.id, a]));
   const sellerMap = new Map((sellers ?? []).map((s) => [s.id, s]));
-  const itemsByOrder = new Map<string, { id: string; name: string; qty: number }[]>();
-  for (const it of items ?? []) {
-    const arr = itemsByOrder.get(it.order_id) ?? [];
-    arr.push({ id: it.id, name: it.name, qty: it.qty });
-    itemsByOrder.set(it.order_id, arr);
+  const itemsByOrder = new Map<string, { id: string; name: string; qty: number; price: number; out_of_stock?: boolean }[]>();
+  for (const it of (items as Record<string, unknown>[] | null) ?? []) {
+    const arr = itemsByOrder.get(it.order_id as string) ?? [];
+    arr.push({
+      id: it.id as string,
+      name: it.name as string,
+      qty: (it.qty as number) || 1,
+      price: Number(it.price) || 0,
+      out_of_stock: Boolean(it.out_of_stock),
+    });
+    itemsByOrder.set(it.order_id as string, arr);
   }
 
   return orders.map((o) => {

@@ -72,7 +72,25 @@ export const POST = withApiLogging(
 
     const { data: list, error: listErr } = await service.auth.admin.listUsers({ perPage: 200 });
     if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
-    const existing = list.users.find((u) => u.phone === phone.replace('+', ''));
+    const phoneNormalized = phone.replace('+', '');
+    const phoneDigits = phone.replace(/\D/g, '').slice(-10);
+
+    let existing = list.users.find(
+      (u) => u.phone === phoneNormalized || u.phone === phone || u.phone?.endsWith(phoneDigits)
+    );
+
+    if (!existing) {
+      // Fallback: check profiles table (e.g. rider or seller registered via admin console)
+      const { data: profile } = await service
+        .from('profiles')
+        .select('id')
+        .or(`phone.eq.${phoneNormalized},phone.eq.${phoneDigits},phone.eq.+91${phoneDigits}`)
+        .maybeSingle();
+
+      if (profile) {
+        existing = list.users.find((u) => u.id === profile.id);
+      }
+    }
 
     const tempPassword = randomUUID();
 
@@ -80,6 +98,7 @@ export const POST = withApiLogging(
       userId = existing.id;
       const { error } = await service.auth.admin.updateUserById(userId, {
         password: tempPassword,
+        phone,
         phone_confirm: true,
       });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });

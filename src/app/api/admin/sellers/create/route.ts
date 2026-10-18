@@ -42,27 +42,35 @@ export const POST = withApiLogging("/api/admin/sellers/create", async (req: Requ
   if (body.phone && phoneDigits.length !== 10) {
     return NextResponse.json({ error: "Enter a valid 10-digit mobile number" }, { status: 400 });
   }
-  // Stored with the "91" prefix, no "+" — matches the format the old
-  // phone-auth flow used to write (phone.replace("+", "")), which every
-  // existing display of this field (e.g. AdminRiderRow) still expects.
+  // Stored with the "91" prefix, no "+" — matches the format existing display
+  // components (e.g. AdminRiderRow) still expect.
   const phoneStored = phoneDigits ? `91${phoneDigits}` : "";
+  const phoneE164 = phoneDigits ? `+91${phoneDigits}` : undefined;
 
   const service = createServiceSupabase();
 
-  // Find an existing auth user with this email, or create one.
+  // Find an existing auth user with this email or phone, or create one.
   let userId: string;
   const { data: list, error: listErr } = await service.auth.admin.listUsers({ perPage: 200 });
   if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
-  const existing = list.users.find((u) => u.email?.toLowerCase() === email);
+  const existingByEmail = list.users.find((u) => u.email?.toLowerCase() === email);
+  const existingByPhone = phoneDigits
+    ? list.users.find((u) => u.phone === phoneStored || u.phone === phoneE164 || u.phone?.endsWith(phoneDigits))
+    : undefined;
+
+  const existing = existingByEmail || existingByPhone;
   if (existing) {
     userId = existing.id;
-    // The email may exist but be unconfirmed (e.g. a real OTP was requested
-    // once but never completed).
-    await service.auth.admin.updateUserById(userId, { email_confirm: true });
+    await service.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+      ...(phoneE164 ? { phone: phoneE164, phone_confirm: true } : {}),
+      user_metadata: { ...existing.user_metadata, full_name: body.full_name ?? body.store_name },
+    });
   } else {
     const { data: created, error: createErr } = await service.auth.admin.createUser({
       email,
       email_confirm: true,
+      ...(phoneE164 ? { phone: phoneE164, phone_confirm: true } : {}),
       user_metadata: { full_name: body.full_name ?? body.store_name },
     });
     if (createErr) return NextResponse.json({ error: createErr.message }, { status: 500 });

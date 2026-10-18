@@ -25,7 +25,7 @@ export function CreateRiderForm() {
       notify.error(json.error ?? "Something went wrong");
       return;
     }
-    notify.success(`Delivery partner created — ${json.email} can now log in and land on their dashboard.`);
+    notify.success(`Delivery partner created — +91 ${form.phone} can now log in via WhatsApp.`);
     setForm({ email: "", phone: "", full_name: "" });
     router.refresh();
   }
@@ -37,25 +37,24 @@ export function CreateRiderForm() {
       </h3>
       <input
         className="input"
-        type="email"
-        placeholder="Login email"
+        placeholder="Full name"
         required
-        value={form.email}
-        onChange={(e) => setForm({ ...form, email: e.target.value })}
+        value={form.full_name}
+        onChange={(e) => setForm({ ...form, full_name: e.target.value })}
       />
       <input
         className="input"
-        placeholder="Contact phone (10-digit)"
+        placeholder="Mobile number (10-digit, login identity)"
         required
         value={form.phone}
         onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
       />
       <input
         className="input"
-        placeholder="Full name"
-        required
-        value={form.full_name}
-        onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+        type="email"
+        placeholder="Email (optional)"
+        value={form.email}
+        onChange={(e) => setForm({ ...form, email: e.target.value })}
       />
       <button className="btn-primary w-full" disabled={loading}>
         {loading ? <Spinner /> : "Create delivery partner"}

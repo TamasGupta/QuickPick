@@ -3,10 +3,8 @@ import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/serv
 import { requireAdmin } from "@/lib/admin";
 import { withApiLogging } from "@/lib/apiLogger";
 
-// POST /api/admin/riders/create — super admin onboards a new delivery
-// partner. email is the login identity; phone is plain contact info (a
-// buyer needs to be able to call their rider during delivery) — see
-// migration 018 for why auth moved from phone to email.
+// POST /api/admin/riders/create — super admin onboards a new delivery partner.
+// Sets up auth user with their phone (and optional email), and assigns role='rider'.
 export const POST = withApiLogging("/api/admin/riders/create", async (req: Request) => {
   const supabase = createServerSupabase();
   const {
@@ -22,38 +20,69 @@ export const POST = withApiLogging("/api/admin/riders/create", async (req: Reque
     phone?: string;
     full_name?: string;
   };
-  if (!body.email || !body.phone || !body.full_name) {
-    return NextResponse.json({ error: "email, phone and full_name are required" }, { status: 400 });
+  if (!body.phone || !body.full_name) {
+    return NextResponse.json({ error: "phone and full_name are required" }, { status: 400 });
   }
 
-  const email = body.email.trim().toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
+  const email = body.email?.trim().toLowerCase() || undefined;
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
   const phoneDigits = body.phone.replace(/\D/g, "").slice(-10);
   if (phoneDigits.length !== 10) {
     return NextResponse.json({ error: "Enter a valid 10-digit mobile number" }, { status: 400 });
   }
-  // Stored with the "91" prefix, no "+" — matches the format the old
-  // phone-auth flow used to write, which every existing display of this
-  // field (e.g. AdminRiderRow, buyer-facing rider contact links) expects.
+  // Stored with the "91" prefix, no "+" — matches the format existing display
+  // components (e.g. AdminRiderRow, buyer-facing rider contact links) expect.
   const phoneStored = `91${phoneDigits}`;
+  const phoneE164 = `+91${phoneDigits}`;
 
   const service = createServiceSupabase();
 
-  let userId: string;
   const { data: list, error: listErr } = await service.auth.admin.listUsers({ perPage: 200 });
   if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
-  const existing = list.users.find((u) => u.email?.toLowerCase() === email);
+
+  // 1. Check if user already exists in auth by phone
+  const existingByPhone = list.users.find(
+    (u) => u.phone === phoneStored || u.phone === phoneE164 || u.phone?.endsWith(phoneDigits)
+  );
+
+  // 2. Check if user already exists in auth by email (if email was supplied)
+  const existingByEmail = email ? list.users.find((u) => u.email?.toLowerCase() === email) : undefined;
+
+  // 3. Check profiles table for an existing profile with this phone
+  const { data: profileByPhone } = await service
+    .from("profiles")
+    .select("id")
+    .or(`phone.eq.${phoneStored},phone.eq.${phoneDigits},phone.eq.${phoneE164}`)
+    .maybeSingle();
+
+  const existingProfileUser = profileByPhone ? list.users.find((u) => u.id === profileByPhone.id) : undefined;
+
+  if (existingByPhone && existingByEmail && existingByPhone.id !== existingByEmail.id) {
+    return NextResponse.json(
+      { error: "An account with this phone number already exists under a different email." },
+      { status: 409 }
+    );
+  }
+
+  const existing = existingByPhone || existingByEmail || existingProfileUser;
+  let userId: string;
+
   if (existing) {
     userId = existing.id;
-    // The email may exist but be unconfirmed (e.g. a real OTP was requested
-    // once but never completed).
-    await service.auth.admin.updateUserById(userId, { email_confirm: true });
+    const { error: updateErr } = await service.auth.admin.updateUserById(userId, {
+      phone: phoneE164,
+      phone_confirm: true,
+      ...(email ? { email, email_confirm: true } : {}),
+      user_metadata: { ...existing.user_metadata, full_name: body.full_name },
+    });
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
   } else {
     const { data: created, error: createErr } = await service.auth.admin.createUser({
-      email,
-      email_confirm: true,
+      phone: phoneE164,
+      phone_confirm: true,
+      ...(email ? { email, email_confirm: true } : {}),
       user_metadata: { full_name: body.full_name },
     });
     if (createErr) return NextResponse.json({ error: createErr.message }, { status: 500 });
@@ -62,9 +91,14 @@ export const POST = withApiLogging("/api/admin/riders/create", async (req: Reque
 
   const { error: profileErr } = await service
     .from("profiles")
-    .update({ role: "rider", full_name: body.full_name, email, phone: phoneStored })
+    .update({
+      role: "rider",
+      full_name: body.full_name,
+      phone: phoneStored,
+      ...(email ? { email } : {}),
+    })
     .eq("id", userId);
   if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, rider_id: userId, email });
+  return NextResponse.json({ ok: true, rider_id: userId, phone: phoneStored, email: email ?? null });
 });
