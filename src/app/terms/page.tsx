@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     "GrabOn Terms and Conditions — your rights and obligations when using our grocery delivery platform.",
 };
 
-const LAST_UPDATED = "23 July 2025";
+const LAST_UPDATED = "18 October 2026";
 
 const SECTIONS = [
   {
@@ -22,12 +22,12 @@ const SECTIONS = [
     body: `To place orders you must create an account using your phone number. You are responsible for maintaining the confidentiality of your account and for all activities that occur under it. Notify us immediately at tamasgupta02@gmail.com if you suspect unauthorised access to your account.`,
   },
   {
-    title: "4. Orders & payment",
-    body: `• All prices displayed on GrabOn are inclusive of applicable taxes.\n• Orders are subject to product availability. If an item becomes unavailable after your order is placed, we will notify you and offer a refund for that item.\n• Payments are processed at the time of checkout. Currently we support Cash on Delivery and online payment options as shown in the app.\n• GrabOn reserves the right to cancel any order that appears fraudulent or violates these terms.`,
+    title: "4. Orders, payment & cancellation",
+    body: `• All prices displayed on GrabOn are inclusive of applicable taxes.\n• Orders are subject to product availability. If an item becomes unavailable after your order is placed, we will notify you and offer a refund for that item.\n• Payments are processed at the time of checkout. Currently we support Cash on Delivery and online payment options as shown in the app.\n• **Cancellation Window:** Buyers can only cancel an order before the order status becomes "Packed". Once the store marks an order as "Packed", packaging has commenced and cancellation is no longer possible.\n• GrabOn reserves the right to cancel any order that appears fraudulent or violates these terms.`,
   },
   {
-    title: "5. Delivery",
-    body: `• Delivery timings are estimates only. While we aim for delivery in under 11 minutes, actual delivery times may vary based on distance, traffic, and seller preparation time.\n• Delivery is currently available within serviceable areas in Agra, Uttar Pradesh only.\n• You must ensure that someone is available at the delivery address to receive the order. If the order cannot be delivered due to the customer's unavailability, it will be returned and a refund issued as per our Refund Policy.`,
+    title: "5. Delivery & doorstep inspection",
+    body: `• Delivery timings are estimates only. While we aim for delivery in under 11 minutes, actual delivery times may vary based on distance, traffic, and seller preparation time.\n• Delivery is currently available within serviceable areas in Agra, Uttar Pradesh only.\n• **Doorstep Verification:** Buyers must inspect all items at the time of delivery before sharing the delivery OTP and accepting the order.\n• **Refusal at Delivery Only:** If an order or item is incorrect, damaged, or expired, the buyer must refuse it at the time of delivery directly with the delivery partner.\n• **No Post-Delivery Refunds:** No refund will be provided once the buyer accepts the order and the order is marked Delivered. Please refer to our Refund & Cancellation Policy for full details.`,
   },
   {
     title: "6. Prohibited conduct",

@@ -27,7 +27,7 @@ const SECTIONS = [
   },
   {
     title: "5. Data retention",
-    body: `We retain your account data for as long as your account is active. You may request deletion of your account and associated data at any time by emailing tamasgupt02a@gmail.com. We will process the request within 30 days.`,
+    body: `We retain your account data for as long as your account is active. You may request deletion of your account and associated data at any time by emailing tamasgupta02@gmail.com. We will process the request within 30 days.`,
   },
   {
     title: "6. Cookies & local storage",
