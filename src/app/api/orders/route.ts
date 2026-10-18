@@ -172,6 +172,42 @@ export const POST = withApiLogging("/api/orders", async (req: Request) => {
   const other_charges = settings.other_charges;
   const total = subtotal + delivery_fee + other_charges;
 
+  // Deduplication check: check if the buyer placed an identical order within the last 90 seconds.
+  // Prevents multiple orders from double-clicks, mobile retries, or network reconnects.
+  const dedupeWindow = new Date(Date.now() - 90 * 1000).toISOString();
+  const { data: recentOrders } = await service
+    .from("orders")
+    .select("id, total, subtotal, status, created_at")
+    .eq("buyer_id", user.id)
+    .eq("seller_id", seller_id)
+    .eq("payment_status", payment_method === "cod" ? "cod" : "pending")
+    .in("status", ["placed", "accepted", "packed"])
+    .gte("created_at", dedupeWindow)
+    .order("created_at", { ascending: false });
+
+  if (recentOrders && recentOrders.length > 0) {
+    const matchingOrder = recentOrders.find((ro) => Math.abs(Number(ro.subtotal) - subtotal) < 0.01);
+    if (matchingOrder) {
+      const { data: recentItems } = await service
+        .from("order_items")
+        .select("product_id, qty")
+        .eq("order_id", matchingOrder.id);
+
+      if (recentItems && recentItems.length === validated.length) {
+        const sortedA = [...recentItems].sort((a, b) => a.product_id.localeCompare(b.product_id));
+        const sortedB = [...validated].sort((a, b) => a.product_id.localeCompare(b.product_id));
+        const itemsMatch = sortedA.every(
+          (item, idx) => item.product_id === sortedB[idx].product_id && Number(item.qty) === Number(sortedB[idx].qty)
+        );
+
+        if (itemsMatch) {
+          console.warn(`[orders] Duplicate order detected for buyer ${user.id}, returning existing order ${matchingOrder.id}`);
+          return NextResponse.json({ id: matchingOrder.id, total: matchingOrder.total, duplicate: true });
+        }
+      }
+    }
+  }
+
   // 4-digit delivery OTP the buyer shares with the rider at handover.
   const delivery_otp = String(Math.floor(1000 + Math.random() * 9000));
 
