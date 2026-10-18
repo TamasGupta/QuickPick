@@ -31,14 +31,14 @@ export default function ContactPage() {
               For order issues, refunds or general enquiries.
             </p>
             <a
-              href="mailto:tamasgupta@gmail.com?subject=GrabOn%20Support"
+              href="mailto:tamasgupta02@gmail.com?subject=GrabOn%20Support"
               className="btn-primary mt-4 inline-flex w-full justify-center"
             >
               <Mail className="h-4 w-4" />
               Send us an email
             </a>
             <p className="mt-2 text-center text-xs text-ink-faint">
-              tamasgupta@gmail.com
+              tamasgupta02@gmail.com
             </p>
           </div>
         </div>
@@ -52,9 +52,10 @@ export default function ContactPage() {
         <div>
           <p className="text-sm font-bold text-ink">Response time</p>
           <p className="text-xs text-ink-soft">
-            We typically reply within <strong className="text-ink">4–6 business hours</strong>{" "}
-            on weekdays. For urgent refund requests please mention your order ID
-            in the subject line.
+            We typically reply within{" "}
+            <strong className="text-ink">4–6 business hours</strong> on
+            weekdays. For urgent refund requests please mention your order ID in
+            the subject line.
           </p>
         </div>
       </div>
@@ -66,9 +67,7 @@ export default function ContactPage() {
         </span>
         <div>
           <p className="text-sm font-bold text-ink">Our location</p>
-          <p className="text-xs text-ink-soft">
-            Agra, Uttar Pradesh, India
-          </p>
+          <p className="text-xs text-ink-soft">Pondicherry University.</p>
         </div>
       </div>
 

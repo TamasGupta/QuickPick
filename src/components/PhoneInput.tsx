@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, ChangeEvent, ForwardedRef, useImperativeHandle, useRef } from "react";
+import {
+  useState,
+  ChangeEvent,
+  ForwardedRef,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import { Phone } from "lucide-react";
 
 interface PhoneInputProps {
@@ -22,9 +28,13 @@ export const PhoneInput = ({
 }: PhoneInputProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useImperativeHandle(ref, () => ({
-    focus: () => inputRef.current?.focus(),
-  }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => inputRef.current?.focus(),
+    }),
+    [],
+  );
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
@@ -32,7 +42,7 @@ export const PhoneInput = ({
   };
 
   const formattedValue = value.replace(/(\d{0,5})(\d{0,5})/, (_, a, b) =>
-    b ? `${a} ${b}` : a
+    b ? `${a} ${b}` : a,
   );
 
   return (
@@ -52,7 +62,7 @@ export const PhoneInput = ({
           type="tel"
           inputMode="numeric"
           maxLength={15}
-          placeholder="98765 43210"
+          placeholder="Enter phone no."
           className="w-full px-3 py-2.5 text-sm outline-none"
           value={formattedValue}
           onChange={handleChange}

@@ -1,50 +1,51 @@
 import type { Metadata } from "next";
-import { Clock, Mail, Package, CheckCircle, XCircle } from "lucide-react";
+import { Clock, ShieldAlert, PackageCheck, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Refund & Cancellation Policy",
   description:
-    "GrabOn Refund and Cancellation Policy — how to request a refund and what to expect.",
+    "GrabOn Refund and Cancellation Policy — rules on order cancellations, doorstep inspection, and refunds.",
 };
 
-const LAST_UPDATED = "23 July 2025";
+const LAST_UPDATED = "18 October 2026";
 
 const STEPS = [
   {
     icon: Clock,
-    step: "Step 1 — Within 24 hours",
-    body: "You must raise your refund request within 24 hours of receiving your delivery. Requests made after this window will not be accepted.",
+    step: "Step 1 — Cancellation window (before packed)",
+    body: "You can cancel your order at any time before the order status is updated to \"Packed\". Once the store marks your order as \"Packed\", preparation is finalized and cancellation is no longer possible.",
   },
   {
-    icon: Mail,
-    step: "Step 2 — Email us",
-    body: "Send an email to tamasgupta@gmail.com with the subject line \"Refund Request — Order #[your order ID]\". In the email, describe the exact issue (e.g. wrong item, damaged product, missing quantity). Attach a photo of the product if possible.",
+    icon: PackageCheck,
+    step: "Step 2 — Doorstep inspection",
+    body: "When the delivery partner arrives, inspect all items in your order at your doorstep before accepting the delivery and sharing the delivery OTP.",
   },
   {
-    icon: Package,
-    step: "Step 3 — Return the product",
-    body: "You must return the product in its original condition — exactly as it was received. Our rider or a pickup agent will collect it from your delivery address within 48 hours of your request being approved.",
+    icon: ShieldAlert,
+    step: "Step 3 — Refuse wrong or damaged items at delivery",
+    body: "If any item is incorrect, damaged, spoiled, or missing, you must refuse the order or the item at the time of delivery directly with the delivery partner. Refusals are accepted only at the doorstep during handover.",
   },
   {
     icon: CheckCircle,
     step: "Step 4 — Refund issued",
-    body: "Once the returned item is verified, we will process your refund within 3–5 business days. Refunds are issued to your original payment method or as GrabOn wallet credit at our discretion.",
+    body: "For eligible cancellations made before packing or items refused at the doorstep on prepaid orders, your refund will be processed to your original payment method within 3–5 business days. For Cash on Delivery orders, you only pay for what you accept.",
   },
 ];
 
 const ELIGIBLE = [
-  "Wrong product delivered",
-  "Damaged, spoiled, or expired product",
-  "Missing item from the order",
-  "Significantly different quantity than ordered",
+  "Order cancelled by the buyer before status becomes 'Packed'",
+  "Wrong or incorrect product refused at the time of delivery",
+  "Damaged, spoiled, or expired product refused at the doorstep",
+  "Missing items verified and reported to the delivery partner before acceptance",
+  "Order cancelled by the store due to stock unavailability",
 ];
 
 const NOT_ELIGIBLE = [
-  "Product opened or partially consumed",
-  "Request raised after 24 hours of delivery",
-  "Change of mind after receiving the order",
-  "Product returned in a condition different from how it was received",
-  "Perishable items (e.g. fresh produce) where the issue is not verifiable",
+  "Any refund or return request raised after the order is accepted and marked as 'Delivered'",
+  "Issues reported after the delivery partner departs and the delivery OTP is shared",
+  "Cancellations requested once the order status becomes 'Packed', 'Out for Delivery', or 'Delivered'",
+  "Products opened, unsealed, or partially consumed after delivery acceptance",
+  "Change of mind after the order has been packed or delivered",
 ];
 
 export default function RefundPolicyPage() {
@@ -59,15 +60,35 @@ export default function RefundPolicyPage() {
           Last updated: {LAST_UPDATED}
         </p>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          We want every GrabOn order to be perfect. If something is wrong, we
-          will make it right — here is exactly how.
+          We want your GrabOn experience to be fast, clear, and dependable.
+          Please read our policy on order cancellations, doorstep verification,
+          and refunds below.
         </p>
       </div>
 
-      {/* How to claim a refund */}
+      {/* Critical Policy Banner */}
+      <div className="card border-2 border-amber-300 bg-amber-50/70 p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div className="text-sm">
+            <p className="font-bold text-amber-900">
+              Important: Doorstep Verification Only
+            </p>
+            <p className="mt-1 leading-relaxed text-amber-800">
+              Please inspect all items before accepting your delivery. If an order or item is wrong, you must{" "}
+              <strong>refuse it at the time of delivery only</strong>.{" "}
+              <strong>
+                No refund will be provided once the buyer accepts the order and the order is marked Delivered.
+              </strong>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* How cancellations & refunds work */}
       <div>
         <h2 className="mb-4 text-lg font-extrabold text-ink">
-          How to claim a refund
+          How cancellations &amp; refunds work
         </h2>
         <div className="space-y-3">
           {STEPS.map((s) => (
@@ -129,27 +150,44 @@ export default function RefundPolicyPage() {
           Order cancellations
         </h2>
         <p className="text-sm leading-relaxed text-ink-soft">
-          You may cancel an order only <strong className="text-ink">before it is accepted by the seller</strong>. Once the seller confirms your order, cancellation is not possible. If you need assistance, email{" "}
-          <a
-            href="mailto:tamasgupta@gmail.com"
-            className="font-semibold text-brand-600 underline-offset-2 hover:underline"
-          >
-            tamasgupta@gmail.com
-          </a>{" "}
-          immediately.
+          Buyers can cancel an order only{" "}
+          <strong className="text-ink">before the order status becomes &quot;Packed&quot;</strong>.
+          Once the store packs your items, packaging is completed and cancellation is no longer possible.
+          For prepaid orders cancelled before packing, a full refund will be automatically initiated to your original payment method.
         </p>
+      </div>
+
+      {/* Doorstep Inspection & Delivery Acceptance Details */}
+      <div className="card p-5">
+        <h2 className="mb-2 text-sm font-bold text-ink">
+          Doorstep inspection &amp; refusal policy
+        </h2>
+        <p className="text-sm leading-relaxed text-ink-soft">
+          Due to the nature of quick grocery delivery and perishables:
+        </p>
+        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs text-ink-soft leading-relaxed">
+          <li>
+            <strong className="text-ink">Inspect upon handover:</strong> You must check the contents of your order with the delivery partner before providing the OTP.
+          </li>
+          <li>
+            <strong className="text-ink">Refusal at delivery only:</strong> If an item is incorrect, expired, or damaged, you must refuse it at the time of delivery directly with the delivery partner.
+          </li>
+          <li>
+            <strong className="text-ink">No refund after delivery:</strong> No refund will be provided once the buyer accepts the order and the order is marked Delivered. Claims cannot be made after the delivery partner departs.
+          </li>
+        </ul>
       </div>
 
       {/* Contact */}
       <div className="card bg-brand-50 p-5 text-center">
         <p className="text-sm font-semibold text-ink">
-          Questions about a refund?
+          Questions about our policy?
         </p>
         <a
-          href="mailto:tamasgupta@gmail.com"
+          href="mailto:tamasgupta02@gmail.com"
           className="mt-1 block text-sm text-brand-600 underline-offset-2 hover:underline"
         >
-          tamasgupta@gmail.com
+          tamasgupta02@gmail.com
         </a>
         <p className="mt-2 text-xs text-ink-faint">
           We typically respond within 4–6 business hours.
