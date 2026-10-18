@@ -109,7 +109,7 @@ export default function CheckoutPage() {
   // Store hours — fetched once when the cart's seller is known.
   const [storeHours, setStoreHours] = useState<StoreHoursStatus | null>(null);
 
-  const { settings } = useSettings();
+  const { settings, loaded } = useSettings();
   const deliveryFee = settings.delivery_fee;
   const otherCharges = settings.other_charges;
   const minOrder = settings.min_order_amount;
@@ -532,21 +532,28 @@ export default function CheckoutPage() {
       {/* Summary */}
       <section className="card space-y-2 p-4 text-sm">
         <div className="flex justify-between"><span>Subtotal</span><span>{inr(sub)}</span></div>
-        <div className="flex justify-between"><span>Delivery fee</span><span>{inr(deliveryFee)}</span></div>
-        <div className="flex justify-between"><span>Other charges</span><span>{inr(otherCharges)}</span></div>
+        <div className="flex justify-between">
+          <span>Delivery fee</span>
+          <span>{loaded ? inr(deliveryFee) : <span className="inline-block h-4 w-12 animate-pulse rounded bg-gray-200" />}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Other charges</span>
+          <span>{loaded ? inr(otherCharges) : <span className="inline-block h-4 w-12 animate-pulse rounded bg-gray-200" />}</span>
+        </div>
         <div className="flex justify-between border-t pt-2 text-base font-bold">
-          <span>Total</span><span>{inr(total)}</span>
+          <span>Total</span>
+          <span>{loaded ? inr(total) : <span className="inline-block h-5 w-16 animate-pulse rounded bg-gray-200" />}</span>
         </div>
       </section>
 
-      {belowMin && (
+      {belowMin && loaded && (
         <p className="rounded-xl bg-accent-50 p-3 text-sm font-medium text-accent-600">
           Add {inr(minOrder - sub)} more to reach the minimum order of {inr(minOrder)}.
         </p>
       )}
 
-      <button className="btn-primary w-full" disabled={placing || needsPin || outOfRange || storeClosed || belowMin} onClick={placeOrder}>
-        {placing ? "Placing order…" : `Place order · ${inr(total)}`}
+      <button className="btn-primary w-full" disabled={placing || needsPin || outOfRange || storeClosed || belowMin || !loaded} onClick={placeOrder}>
+        {placing ? "Placing order…" : !loaded ? "Loading details…" : `Place order · ${inr(total)}`}
       </button>
     </div>
   );

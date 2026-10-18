@@ -24,6 +24,9 @@ export function createServerSupabase() {
           }
         },
       },
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, cache: "no-store" }),
+      },
     }
   );
 }
@@ -35,6 +38,11 @@ export function createServiceSupabase() {
   return createRawClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, cache: "no-store" }),
+      },
+    }
   );
 }

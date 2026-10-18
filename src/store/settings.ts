@@ -36,7 +36,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     set({ loading: true });
     try {
-      const res = await fetch("/api/settings");
+      const res = await fetch("/api/settings", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         set({
@@ -44,9 +44,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           restrictions: data.restrictions ?? {},
           loaded: true,
         });
+      } else {
+        set({ loaded: true });
       }
     } catch {
       // Fallback stays in place
+      set({ loaded: true });
     } finally {
       set({ loading: false });
     }
