@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { invalidateSettingsCache } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function DELETE(
   _req: Request,
@@ -48,6 +50,11 @@ export async function DELETE(
   }
 
   invalidateSettingsCache();
+  try {
+    revalidatePath("/api/settings");
+  } catch {
+    // ignore outside request context
+  }
 
   return NextResponse.json({ success: true });
 }

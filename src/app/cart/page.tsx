@@ -11,7 +11,7 @@ import { notify } from "@/store/notify";
 export default function CartPage() {
   const router = useRouter();
   const { items, setQty, remove, subtotal } = useCart();
-  const { settings, getProductLimit, getProductRestriction } = useSettings();
+  const { settings, loaded, getProductLimit } = useSettings();
 
   const deliveryFee = settings.delivery_fee;
   const otherCharges = settings.other_charges;
@@ -54,7 +54,6 @@ export default function CartPage() {
       <div className="card divide-y divide-gray-100">
         {items.map((i) => {
           const limit = getProductLimit(i.id, i.stock, i.max_order_qty);
-          const restriction = getProductRestriction(i.id, i.max_order_qty);
           const atLimit = i.qty >= limit;
 
           return (
@@ -71,11 +70,6 @@ export default function CartPage() {
                 <p className="truncate text-sm font-semibold text-ink">{i.name}</p>
                 <div className="flex items-center gap-2">
                   {i.unit && <p className="text-xs text-ink-faint">{i.unit}</p>}
-                  {restriction != null && (
-                    <span className="rounded bg-amber-50 px-1.5 py-0.2 text-[10px] font-semibold text-amber-700">
-                      Limit {restriction}/order
-                    </span>
-                  )}
                 </div>
                 <p className="mt-0.5 text-sm font-bold text-ink">{inr(i.price)}</p>
               </div>
@@ -116,21 +110,38 @@ export default function CartPage() {
       <div className="card space-y-2.5 p-4 text-sm">
         <p className="font-bold text-ink">Bill details</p>
         <div className="flex justify-between text-ink-soft"><span>Item total</span><span>{inr(sub)}</span></div>
-        <div className="flex justify-between text-ink-soft"><span>Delivery fee</span><span>{inr(deliveryFee)}</span></div>
-        <div className="flex justify-between text-ink-soft"><span>Other charges</span><span>{inr(otherCharges)}</span></div>
+        <div className="flex justify-between text-ink-soft">
+          <span>Delivery fee</span>
+          <span>{loaded ? inr(deliveryFee) : <span className="inline-block h-4 w-12 animate-pulse rounded bg-gray-200" />}</span>
+        </div>
+        <div className="flex justify-between text-ink-soft">
+          <span>Other charges</span>
+          <span>{loaded ? inr(otherCharges) : <span className="inline-block h-4 w-12 animate-pulse rounded bg-gray-200" />}</span>
+        </div>
         <div className="flex justify-between border-t border-dashed border-gray-200 pt-2.5 text-base font-extrabold text-ink">
-          <span>To pay</span><span>{inr(total)}</span>
+          <span>To pay</span>
+          <span>{loaded ? inr(total) : <span className="inline-block h-5 w-16 animate-pulse rounded bg-gray-200" />}</span>
         </div>
       </div>
 
-      {belowMin && (
+      {belowMin && loaded && (
         <p className="rounded-xl bg-accent-50 p-3 text-sm font-medium text-accent-600">
           Add {inr(minOrder - sub)} more to reach the minimum order of {inr(minOrder)}.
         </p>
       )}
 
-      <button className="btn-primary w-full py-3.5 text-base" disabled={belowMin} onClick={() => router.push("/checkout")}>
-        Proceed to checkout · {inr(total)} <ArrowRight className="h-4 w-4" />
+      <button
+        className="btn-primary w-full py-3.5 text-base"
+        disabled={belowMin || !loaded}
+        onClick={() => router.push("/checkout")}
+      >
+        {loaded ? (
+          <>
+            Proceed to checkout · {inr(total)} <ArrowRight className="h-4 w-4" />
+          </>
+        ) : (
+          "Loading details…"
+        )}
       </button>
     </div>
   );
