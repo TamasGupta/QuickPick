@@ -398,14 +398,66 @@ function RiderOrderCard({
         </button>
 
         {showItems && (
-          <ul className="space-y-1 border-t pt-2">
-            {o.items.map((it) => (
-              <li key={it.id} className="flex justify-between text-sm">
-                <span>{it.name} × {it.qty}</span>
-                <span className="font-medium">{inr((o.total / itemCount) * it.qty)}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2 border-t pt-2">
+            <ul className="space-y-1.5">
+              {o.items.map((it) => (
+                <li key={it.id} className="flex justify-between text-sm">
+                  <span className={it.out_of_stock ? "text-ink-faint line-through" : ""}>
+                    {it.name} <span className="text-xs text-ink-faint">({inr(it.price)} × {it.qty})</span>
+                  </span>
+                  <span className={`font-medium ${it.out_of_stock ? "text-ink-faint line-through" : ""}`}>
+                    {inr(it.price * it.qty)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Payment Distribution / Bill Summary */}
+            <div className="rounded-lg bg-gray-50 p-2.5 text-xs space-y-1 border border-gray-100">
+              <p className="font-semibold text-ink text-[11px] uppercase tracking-wide text-ink-faint mb-1">
+                Payment Distribution
+              </p>
+              <div className="flex justify-between text-ink-soft">
+                <span>Items Subtotal</span>
+                <span>{inr(o.subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-brand-700 font-medium">
+                <span>Delivery Fee (Rider Earning)</span>
+                <span>+{inr(o.delivery_fee)}</span>
+              </div>
+              {o.other_charges > 0 && (
+                <div className="flex justify-between text-ink-soft">
+                  <span>Other Charges</span>
+                  <span>+{inr(o.other_charges)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-gray-200 pt-1 font-bold text-sm text-ink">
+                <span>Total Amount</span>
+                <span>{inr(o.total)}</span>
+              </div>
+
+              {isCod ? (
+                <div className="mt-2 rounded bg-amber-100/70 p-2 text-xs text-amber-900 space-y-1">
+                  <div className="flex justify-between font-bold">
+                    <span>Cash to collect from customer:</span>
+                    <span>{inr(o.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-amber-800">
+                    <span>↳ Your delivery fee (keep):</span>
+                    <span>{inr(o.delivery_fee)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-amber-800">
+                    <span>↳ Remit to platform:</span>
+                    <span>{inr(o.subtotal + o.other_charges)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3" /> Customer paid {inr(o.total)} online · Collect ₹0
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
