@@ -35,7 +35,30 @@ export const POST = withApiLogging(
       if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
       
       const phoneNormalized = phone.replace('+', '');
-      const existing = list.users.find((u) => u.phone === phoneNormalized);
+      const phoneDigits = phone.replace(/\D/g, '').slice(-10);
+      let existing = list.users.find(
+        (u) => u.phone === phoneNormalized || u.phone === phone || u.phone?.endsWith(phoneDigits)
+      );
+
+      if (!existing) {
+        // Fallback: check profiles table (e.g. rider or seller registered via admin console)
+        const { data: profile } = await service
+          .from('profiles')
+          .select('id')
+          .or(`phone.eq.${phoneNormalized},phone.eq.${phoneDigits},phone.eq.+91${phoneDigits}`)
+          .maybeSingle();
+
+        if (profile) {
+          existing = list.users.find((u) => u.id === profile.id);
+          // Sync phone into auth.users if it was missing
+          if (existing && !existing.phone) {
+            await service.auth.admin.updateUserById(existing.id, {
+              phone,
+              phone_confirm: true,
+            });
+          }
+        }
+      }
 
       if (mode === 'login' && !existing) {
         return NextResponse.json({ error: 'No account found with this number. Please register first.' }, { status: 404 });
