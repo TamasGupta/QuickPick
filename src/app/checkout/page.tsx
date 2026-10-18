@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { inr } from "@/lib/utils";
 import { useSettings } from "@/store/settings";
 import { haversineKm, MAX_DELIVERY_RADIUS_KM } from "@/lib/geo";
 import { SkelLine } from "@/components/skeletons";
+import { Spinner } from "@/components/Loader";
 import { notify } from "@/store/notify";
 import type { Address, StoreHoursStatus } from "@/lib/types";
 import type { PickedLocation } from "@/components/LocationPicker";
@@ -83,6 +84,7 @@ export default function CheckoutPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState<string>("");
   const [placing, setPlacing] = useState(false);
+  const isPlacingRef = useRef(false);
   const [showAddr, setShowAddr] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ line1: "", line2: "", city: "", state: "", pincode: "", label: "Home" });
@@ -308,11 +310,14 @@ export default function CheckoutPage() {
   }
 
   async function placeOrder() {
+    if (isPlacingRef.current) return;
     if (!addressId) return notify.error("Please select a delivery address.");
     if (belowMin) return notify.error(`Order subtotal is below the minimum order of ${inr(minOrder)}.`);
     if (needsPin) return notify.error("Please pin your exact delivery location before placing this order.");
     if (outOfRange) return notify.error("This store doesn't deliver to your address.");
     if (storeClosed) return notify.error("This store is currently closed.");
+
+    isPlacingRef.current = true;
     setPlacing(true);
     try {
       const res = await fetch("/api/orders", {
@@ -330,15 +335,24 @@ export default function CheckoutPage() {
       if (!res.ok) throw new Error(order.error || "Failed to create order");
 
       clear();
-      router.push(`/orders/${order.id}?placed=1`);
+      router.replace(`/orders/${order.id}?placed=1`);
     } catch (err) {
-      notify.error((err as Error).message);
-    } finally {
+      isPlacingRef.current = false;
       setPlacing(false);
+      notify.error((err as Error).message);
     }
   }
 
   if (items.length === 0) {
+    if (placing || isPlacingRef.current) {
+      return (
+        <div className="card mx-auto max-w-md p-8 text-center text-gray-500">
+          <Spinner className="mx-auto h-8 w-8 mb-3 border-brand-200 border-t-brand-600" />
+          <p className="font-bold text-ink">Placing your order…</p>
+          <p className="text-xs text-ink-faint mt-1">Please wait while we confirm your order.</p>
+        </div>
+      );
+    }
     return (
       <div className="card mx-auto max-w-md p-8 text-center text-gray-500">
         Your cart is empty. <Link href="/" className="text-brand-700 underline">Shop now</Link>

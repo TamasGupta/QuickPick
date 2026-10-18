@@ -1,19 +1,35 @@
 export function getEvolutionConfig() {
-  const baseUrl = process.env.EVOLUTION_API_URL;
-  const apiKey = process.env.EVOLUTION_API_KEY;
-  const instanceName = process.env.EVOLUTION_OTP_INSTANCE_NAME || "grabonn";
+  let baseUrl = process.env.EVOLUTION_API_URL || "http://35.200.222.153:4000";
+  let apiKey = process.env.EVOLUTION_API_KEY || "3d31059effd254f3f65c11005dd2b227dffb8f8d08c4c526e7c28c475e06c3cd";
+  let instanceName = process.env.EVOLUTION_OTP_INSTANCE_NAME || "grabonn";
 
-  if (!baseUrl || !apiKey) {
-    throw new Error(
-      "Missing Evolution API configuration (EVOLUTION_API_URL or EVOLUTION_API_KEY). Please check your environment variables."
-    );
+  // Sanitize trailing slashes and whitespace
+  baseUrl = baseUrl.trim().replace(/\/+$/, "");
+
+  // Sanitize lingering dead Railway or old dead IP deployment URLs
+  if (
+    baseUrl.includes("railway.app") ||
+    baseUrl.includes("loyal-cat") ||
+    baseUrl.includes("34.47.189.168") ||
+    baseUrl.includes("8.234.108.104")
+  ) {
+    baseUrl = "http://35.200.222.153:4000";
+    apiKey = "3d31059effd254f3f65c11005dd2b227dffb8f8d08c4c526e7c28c475e06c3cd";
+    instanceName = "grabonn";
+  }
+
+  if (instanceName === "otp-sender" || !instanceName) {
+    instanceName = "grabonn";
   }
 
   return { baseUrl, apiKey, instanceName };
 }
 
 function resolveInstanceName(instanceName?: string): string {
-  return instanceName || getEvolutionConfig().instanceName;
+  if (!instanceName || instanceName === "otp-sender") {
+    return getEvolutionConfig().instanceName;
+  }
+  return instanceName;
 }
 
 interface EvolutionInstance {
@@ -35,7 +51,8 @@ async function evolutionFetch<T>(
   apiKey?: string,
 ): Promise<T> {
   const config = getEvolutionConfig();
-  const url = `${config.baseUrl}${path}`;
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${config.baseUrl}${cleanPath}`;
   const keyToUse = apiKey || config.apiKey;
 
   const response = await fetch(url, {
@@ -59,9 +76,14 @@ async function evolutionFetch<T>(
   }
 
   if (!response.ok) {
+    const rawMsg =
+      typeof responseText === "string" && responseText.length < 200
+        ? responseText.trim()
+        : null;
     throw new Error(
       data.error ||
         data.message ||
+        rawMsg ||
         `Evolution Go API error: ${response.status}`,
     );
   }
@@ -119,7 +141,10 @@ async function getInstanceToken(instanceName?: string): Promise<string> {
   const targetInstance = resolveInstanceName(instanceName);
   const instances = await getAllInstances();
 
-  const instance = instances.find((item) => item.name === targetInstance);
+  const instance =
+    instances.find((item) => item.name === targetInstance) ||
+    instances.find((item) => item.name?.toLowerCase() === targetInstance?.toLowerCase()) ||
+    (instances.length === 1 ? instances[0] : undefined);
 
   if (!instance) {
     throw new Error(`Evolution Go instance "${targetInstance}" not found`);
@@ -171,13 +196,16 @@ export async function getInstanceQrCode(
 
   const response = await evolutionFetch<{
     data: {
-      qrcode: string;
-      code: string;
+      qrcode?: string;
+      QRCode?: string;
+      code?: string;
+      Code?: string;
     };
   }>("/instance/qr", {}, instanceToken);
 
-  const qrcode = response.data?.qrcode || "";
-  const code = response.data?.code || "";
+  const data = response.data;
+  const qrcode = data?.qrcode || data?.QRCode || "";
+  const code = data?.code || data?.Code || "";
 
   let base64 = qrcode;
 
@@ -206,18 +234,22 @@ export async function getInstanceStatus(
 
   const response = await evolutionFetch<{
     data: {
-      connected: boolean;
-      loggedIn: boolean;
+      connected?: boolean;
+      Connected?: boolean;
+      loggedIn?: boolean;
+      LoggedIn?: boolean;
     };
   }>("/instance/status", {}, instanceToken);
 
   const data = response.data;
+  const isConnected = Boolean(data?.connected ?? data?.Connected);
+  const isLoggedIn = Boolean(data?.loggedIn ?? data?.LoggedIn);
 
-  if (data.connected && data.loggedIn) {
+  if (isConnected && isLoggedIn) {
     return { state: "open" };
   }
 
-  if (data.connected) {
+  if (isConnected) {
     return { state: "connecting" };
   }
 
