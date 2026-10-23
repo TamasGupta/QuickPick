@@ -1,35 +1,26 @@
 export function getEvolutionConfig() {
-  let baseUrl = process.env.EVOLUTION_API_URL || "http://35.200.222.153:4000";
-  let apiKey = process.env.EVOLUTION_API_KEY || "3d31059effd254f3f65c11005dd2b227dffb8f8d08c4c526e7c28c475e06c3cd";
-  let instanceName = process.env.EVOLUTION_OTP_INSTANCE_NAME || "grabonn";
+  const baseUrl = (process.env.EVOLUTION_API_URL || "").trim().replace(/\/+$/, "");
+  const apiKey = (process.env.EVOLUTION_API_KEY || "").trim();
+  const instanceName = (process.env.EVOLUTION_OTP_INSTANCE_NAME || "").trim();
 
-  // Sanitize trailing slashes and whitespace
-  baseUrl = baseUrl.trim().replace(/\/+$/, "");
-
-  // Sanitize lingering dead Railway or old dead IP deployment URLs
-  if (
-    baseUrl.includes("railway.app") ||
-    baseUrl.includes("loyal-cat") ||
-    baseUrl.includes("34.47.189.168") ||
-    baseUrl.includes("8.234.108.104")
-  ) {
-    baseUrl = "http://35.200.222.153:4000";
-    apiKey = "3d31059effd254f3f65c11005dd2b227dffb8f8d08c4c526e7c28c475e06c3cd";
-    instanceName = "grabonn";
+  if (!baseUrl) {
+    throw new Error("Missing EVOLUTION_API_URL environment variable");
   }
-
-  if (instanceName === "otp-sender" || !instanceName) {
-    instanceName = "grabonn";
+  if (!apiKey) {
+    throw new Error("Missing EVOLUTION_API_KEY environment variable");
+  }
+  if (!instanceName) {
+    throw new Error("Missing EVOLUTION_OTP_INSTANCE_NAME environment variable");
   }
 
   return { baseUrl, apiKey, instanceName };
 }
 
 function resolveInstanceName(instanceName?: string): string {
-  if (!instanceName || instanceName === "otp-sender") {
-    return getEvolutionConfig().instanceName;
+  if (instanceName && instanceName.trim()) {
+    return instanceName.trim();
   }
-  return instanceName;
+  return getEvolutionConfig().instanceName;
 }
 
 interface EvolutionInstance {
